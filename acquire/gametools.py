@@ -138,3 +138,4 @@ def play_tile(game, player, tile):
     
     player['rack'].remove(tile)
     game['lonely_tiles'].append(tile)
+    player['rack'].append(game['tilebag'].pop())

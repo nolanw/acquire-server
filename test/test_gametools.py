@@ -101,6 +101,12 @@ class TestTilePlay(ThreePlayerGameTestCase):
             gametools.play_tile(self.game, self.active_player, tile)
         self.assertEqual(self.game['tilebag'][0], tile)
     
+    def test_rack_replenishment(self):
+        player = self.active_player
+        tile = player['rack'][0]
+        gametools.play_tile(self.game, self.active_player, tile)
+        self.assertEqual(len(player['rack']), 6)
+    
 
 if __name__ == '__main__':
     unittest.main()
