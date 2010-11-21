@@ -10,6 +10,8 @@ class GameError(Exception):
 class GameAlreadyStartedError(GameError):
     pass
 
+class GamePlayNotAllowedError(GameError):
+    pass
 
 #### Game creation
 
@@ -87,6 +89,10 @@ def start_game(game):
         player['rack'] = game['tilebag'][:6]
         del game['tilebag'][:6]
         player['shares'] = {}
+    
+    game['action_queue'] = []
+    append_action(game, 'play_tile', starting_player)
+    
     game['started'] = True
     return starting_tiles
 
@@ -106,3 +112,29 @@ def hotel_named(game, hotel_name):
 def bank_shares(game, hotel):
     """Returns the number of shares in the bank for the given hotel."""
     return 25 - sum(p['shares'].get(hotel['name'], 0) for p in game['players'])
+
+
+#### Action queue
+#
+# The action queue of a game tracks which player is to play next. It's a queue, 
+# rather than just a single value, because hotel mergers result in several 
+# subsequent actions that cannot be computed along the way.
+
+def append_action(game, action, player):
+    """Append an action to the game's action queue which must be performed by 
+    the given player.
+    """
+    game['action_queue'].append(dict(action=action, player=player['name']))
+
+
+#### Playing tiles
+
+def play_tile(game, player, tile):
+    """If allowed, play tile from player's rack on to the board. Any new hotels 
+    or mergers are taken care of.
+    """
+    if tile not in player['rack']:
+        raise GamePlayNotAllowedError('must play tiles from tile rack')
+    
+    player['rack'].remove(tile)
+    game['lonely_tiles'].append(tile)

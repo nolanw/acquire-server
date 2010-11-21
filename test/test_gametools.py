@@ -33,7 +33,7 @@ class TestAddingAndRemovingPlayers(unittest.TestCase):
             gametools.remove_player_named(self.game, 'testwomanican')
     
 
-class TestGameSetup(unittest.TestCase):
+class ThreePlayerGameTestCase(unittest.TestCase):
     
     def setUp(self):
         self.game = gametools.new_game()
@@ -41,6 +41,9 @@ class TestGameSetup(unittest.TestCase):
         gametools.add_player_named(self.game, 'testmanican')
         gametools.add_player_named(self.game, 'testvetica')
         self.starting_tiles = gametools.start_game(self.game)
+    
+
+class TestGameSetup(ThreePlayerGameTestCase):
     
     def test_starting_player_tile_draw(self):
         self.assertEqual(len(self.starting_tiles), len(self.game['players']))
@@ -70,6 +73,33 @@ class TestGameSetup(unittest.TestCase):
             self.assertTrue(hotel)
             self.assertEqual(len(hotel['tiles']), 0)
             self.assertEqual(gametools.bank_shares(self.game, hotel), 25)
+    
+    def test_starting_player(self):
+        first_action = self.game['action_queue'][0]
+        self.assertEqual(first_action['player'], 
+                         self.game['players'][0]['name'])
+        self.assertEqual(first_action['action'], 'play_tile')
+    
+
+class TestTilePlay(ThreePlayerGameTestCase):
+    
+    @property
+    def active_player(self):
+        return gametools.player_named(self.game, 
+                                      self.game['action_queue'][0]['player'])
+    
+    def test_legit_play_tile(self):
+        player = self.active_player
+        tile = player['rack'][0]
+        gametools.play_tile(self.game, player, tile)
+        self.assertTrue(tile in self.game['lonely_tiles'])
+        self.assertTrue(tile not in player['rack'])
+    
+    def test_play_tile_not_in_rack(self):
+        tile = self.game['tilebag'][0]
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.play_tile(self.game, self.active_player, tile)
+        self.assertEqual(self.game['tilebag'][0], tile)
     
 
 if __name__ == '__main__':
