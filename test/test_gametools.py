@@ -39,7 +39,14 @@ class TestGameSetup(unittest.TestCase):
         gametools.add_player_named(self.game, 'testwomanican')
         gametools.add_player_named(self.game, 'testmanican')
         gametools.add_player_named(self.game, 'testvetica')
-        gametools.start_game(self.game)
+        self.starting_tiles = gametools.start_game(self.game)
+    
+    def test_starting_player_tile_draw(self):
+        self.assertEqual(len(self.starting_tiles), len(self.game['players']))
+        tileorder = lambda t: t[-1] + t[:-1]
+        starting_tile = sorted(self.starting_tiles.keys(), key=tileorder)[0]
+        self.assertEqual(self.game['players'][0], 
+                         self.starting_tiles[starting_tile])
     
     def test_tile_racks(self):
         for player in self.game['players']:
@@ -52,6 +59,8 @@ class TestGameSetup(unittest.TestCase):
             for tile in player['rack']:
                 tilebag_should_be.remove(tile)
         self.assertTrue(tilebag_should_be == sorted(self.game['tilebag']))
+        for tile in self.game['lonely_tiles']:
+            tilebag_should_be.remove(tile)
     
 
 if __name__ == '__main__':

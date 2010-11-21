@@ -54,10 +54,37 @@ def remove_player_named(game, player_name):
 #### Game setup
 
 def start_game(game):
-    """Do all the setup of the game."""
+    """Do all the setup of the game.
+    
+    Returns a mapping of starting tiles to the players who drew them.
+    """
+    if not game['players']:
+        raise GameError('cannot start a game with no players')
+    
+    hotel_names = ['sackson', 'zeta', 'america', 'fusion', 'hydra', 'quantum', 
+                   'phoenix']
+    game['hotels'] = map(lambda h: {'name': h, 'tiles': []}, hotel_names)
+    
     game['tilebag'] = [str(i) + a for i in range(1, 13) for a in 'ABCDEFGHI']
     shuffle(game['tilebag'])
+    
+    # To figure out the starting player, everyone draws one tile from the bag 
+    # and puts it on the board. The player who drew the tile closest to row A 
+    # goes first, with ties broken by the tile closest to column 1.
+    starting_tiles = {}
+    for player in game['players']:
+        starting_tiles[game['tilebag'].pop()] = player
+    starting_order = starting_tiles.keys()
+    starting_order.sort(key=lambda t: t[-1] + t[:-1])
+    starting_player = starting_tiles[starting_order[0]]
+    shuffle(game['players'])
+    game['players'].remove(starting_player)
+    game['players'].insert(0, starting_player)
+    game['lonely_tiles'] = starting_order
+    
     for player in game['players']:
         player['rack'] = game['tilebag'][:6]
         del game['tilebag'][:6]
+        player['shares'] = {}
     game['started'] = True
+    return starting_tiles
