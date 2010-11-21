@@ -124,17 +124,20 @@ class TestGameSetup(ThreePlayerGameTestCase):
                          self.game['players'][0]['name'])
         self.assertEqual(first_action['action'], 'play_tile')
     
+    def test_active_player(self):
+        first_player = self.game['players'][0]
+        self.assertEqual(first_player, gametools.active_player(self.game))
+    
 
 class TestTilePlay(ThreePlayerGameTestCase):
     
-    @property
-    def active_player(self):
-        return gametools.player_named(self.game, 
-                                      self.game['action_queue'][0]['player'])
-    
     def test_legit_play_tile(self):
-        player = self.active_player
-        tile = player['rack'][0]
+        player = gametools.active_player(self.game)
+        tile = None
+        for rack_tile in player['rack']:
+            if rack_tile not in gametools.tiles_that_create_hotels(self.game):
+                tile = rack_tile
+                break
         gametools.play_tile(self.game, player, tile)
         self.assertTrue(tile in self.game['lonely_tiles'])
         self.assertTrue(tile not in player['rack'])
@@ -142,13 +145,14 @@ class TestTilePlay(ThreePlayerGameTestCase):
     def test_play_tile_not_in_rack(self):
         tile = self.game['tilebag'][0]
         with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.play_tile(self.game, self.active_player, tile)
+            gametools.play_tile(self.game, gametools.active_player(self.game), 
+                                tile)
         self.assertEqual(self.game['tilebag'][0], tile)
     
     def test_rack_replenishment(self):
-        player = self.active_player
+        player = gametools.active_player(self.game)
         tile = player['rack'][0]
-        gametools.play_tile(self.game, self.active_player, tile)
+        gametools.play_tile(self.game, player, tile)
         self.assertEqual(len(player['rack']), 6)
     
 

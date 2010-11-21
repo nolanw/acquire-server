@@ -54,6 +54,10 @@ def remove_player_named(game, player_name):
         raise GameAlreadyStartedError()
     game['players'].remove(player_named(game, player_name))
 
+def active_player(game):
+    """Returns the player who must perform the next action."""
+    return player_named(game, game['action_queue'][0]['player'])
+
 
 #### Game setup
 
