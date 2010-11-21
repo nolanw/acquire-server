@@ -88,3 +88,20 @@ def start_game(game):
         player['shares'] = {}
     game['started'] = True
     return starting_tiles
+
+
+#### Hotels
+
+def hotel_named(game, hotel_name):
+    """Find the hotel with the given name.
+    
+    Returns the dict for the associated hotel, or None if no such hotel.
+    """
+    for hotel in game['hotels']:
+        if hotel['name'] == hotel_name:
+            return hotel
+    return None
+
+def bank_shares(game, hotel):
+    """Returns the number of shares in the bank for the given hotel."""
+    return 25 - sum(p['shares'].get(hotel['name'], 0) for p in game['players'])

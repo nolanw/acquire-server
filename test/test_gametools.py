@@ -63,6 +63,14 @@ class TestGameSetup(unittest.TestCase):
             tilebag_should_be.remove(tile)
         self.assertEqual(tilebag_should_be, sorted(self.game['tilebag']))
     
+    def test_hotels(self):
+        names = 'sackson zeta america fusion hydra quantum phoenix'.split()
+        for name in names:
+            hotel = gametools.hotel_named(self.game, name)
+            self.assertTrue(hotel)
+            self.assertEqual(len(hotel['tiles']), 0)
+            self.assertEqual(gametools.bank_shares(self.game, hotel), 25)
+    
 
 if __name__ == '__main__':
     unittest.main()
