@@ -4,6 +4,7 @@
 from random import shuffle
 
 class GameError(Exception):
+    """Superclass for all exceptions in the gametools module."""
     pass
 
 class GameAlreadyStartedError(GameError):
