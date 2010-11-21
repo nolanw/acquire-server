@@ -97,6 +97,57 @@ def start_game(game):
     game['started'] = True
     return starting_tiles
 
+def set_up_hotels(game):
+    """Initialize the standard set of hotels."""
+    game['hotels'] = map(lambda h: {'name': h, 'tiles': []}, hotel_names)
+
+
+#### Board
+
+def adjacent_tiles(tile):
+    """Return a list of tiles that are adjacent to tile on the board."""
+    col, row = int(tile[:-1]), tile[-1]
+    adjacent = []
+    adjacent_cols, adjacent_rows = [], []
+    if col > 1:
+        adjacent_cols.append(col - 1)
+    if col < 12:
+        adjacent_cols.append(col + 1)
+    adjacent.extend(str(c) + row for c in adjacent_cols)
+    if row > 'A':
+        adjacent_rows.append(chr(ord(row) - 1))
+    if row < 'I':
+        adjacent_rows.append(chr(ord(row) + 1))
+    adjacent.extend(str(col) + r for r in adjacent_rows)
+    return adjacent
+
+def where_is_tile(game, tile):
+    """Return one of the following, depending on what surrounds the tile:
+        - None if the tile is off the board.
+        - 'lonely' if the tile is on the board but in no hotels.
+        - 'sackson' or 'zeta' or ... if the tile is in a hotel.
+    """
+    if tile in game['lonely_tiles']:
+        return 'lonely'
+    for hotel in game['hotels']:
+        if tile in hotel['tiles']:
+            return hotel['name']
+    return None
+
+def tiles_that_create_hotels(game):
+    """Return a list of tiles that, if played, would cause a new hotel to be 
+    created.
+    """
+    tiles = []
+    for on_board in game['lonely_tiles']:
+        here_they_are = set(where_is_tile(game, t) 
+                            for t in adjacent_tiles(on_board))
+        if here_they_are & set(hotel_names):
+            continue
+        tiles.extend(t for t in adjacent_tiles(on_board) 
+                             if t not in game['lonely_tiles'])
+    return tiles
+
 
 #### Hotels
 

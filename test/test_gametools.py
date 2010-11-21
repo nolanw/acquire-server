@@ -33,6 +33,50 @@ class TestAddingAndRemovingPlayers(unittest.TestCase):
             gametools.remove_player_named(self.game, 'testwomanican')
     
 
+class TestAdjacentTiles(unittest.TestCase):
+    
+    def test_adjacent_tiles_middle(self):
+        tile = '5D'
+        adjacent = gametools.adjacent_tiles(tile)
+        self.assertEqual(sorted(adjacent), ['4D', '5C', '5E', '6D'])
+    
+    def test_adjacent_tiles_edge(self):
+        tile = '7A'
+        adjacent = gametools.adjacent_tiles(tile)
+        self.assertEqual(sorted(adjacent), ['6A', '7B', '8A'])
+    
+    def test_adjacent_tiles_corner(self):
+        tile = '12I'
+        adjacent = gametools.adjacent_tiles(tile)
+        self.assertEqual(sorted(adjacent), ['11I', '12H'])
+    
+
+class TestWhereIsTile(unittest.TestCase):
+    
+    def test_where_is_tile(self):
+        game = gametools.new_game()
+        gametools.set_up_hotels(game)
+        game['lonely_tiles'] = ['4C']
+        quantum = gametools.hotel_named(game, 'quantum')
+        quantum['tiles'] = ['8D', '9D']
+        self.assertEqual(gametools.where_is_tile(game, '1A'), None)
+        self.assertEqual(gametools.where_is_tile(game, '4C'), 'lonely')
+        self.assertEqual(gametools.where_is_tile(game, '4D'), None)
+        self.assertEqual(gametools.where_is_tile(game, '8D'), 'quantum')
+    
+
+class TestTilesThatCreateAHotel(unittest.TestCase):
+    
+    def test_tiles_that_create_hotels(self):
+        game = gametools.new_game()
+        gametools.set_up_hotels(game)
+        game['lonely_tiles'] = ['1A', '8E', '8F', '9I']
+        tile_order = lambda t: (int(t[:-1]), t[-1])
+        self.assertEqual(sorted(gametools.tiles_that_create_hotels(game), 
+                                key=tile_order), 
+                         '1B 2A 7E 7F 8D 8G 8I 9E 9F 9H 10I'.split())
+    
+
 class ThreePlayerGameTestCase(unittest.TestCase):
     
     def setUp(self):
