@@ -13,6 +13,7 @@ class GameAlreadyStartedError(GameError):
 class GamePlayNotAllowedError(GameError):
     pass
 
+
 #### Game creation
 
 def new_game():
