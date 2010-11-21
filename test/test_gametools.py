@@ -156,5 +156,17 @@ class TestTilePlay(ThreePlayerGameTestCase):
         self.assertEqual(len(player['rack']), 6)
     
 
+class TestHotelCreation(ThreePlayerGameTestCase):
+    
+    def test_create_hotel(self):
+        tile_to_play = gametools.tiles_that_create_hotels(self.game)[0]
+        player = gametools.active_player(self.game)
+        player['rack'][0] = tile_to_play
+        gametools.play_tile(self.game, player, tile_to_play)
+        sackson = gametools.hotel_named(self.game, 'sackson')
+        gametools.create_hotel(self.game, player, sackson)
+        self.assertTrue(sackson['tiles'])
+    
+
 if __name__ == '__main__':
     unittest.main()

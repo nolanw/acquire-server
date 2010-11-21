@@ -3,6 +3,10 @@
 
 from random import shuffle
 
+
+hotel_names = 'sackson zeta america fusion hydra quantum phoenix'.split()
+
+
 class GameError(Exception):
     """Superclass for all exceptions in the gametools module."""
     pass
@@ -69,9 +73,7 @@ def start_game(game):
     if not game['players']:
         raise GameError('cannot start a game with no players')
     
-    hotel_names = ['sackson', 'zeta', 'america', 'fusion', 'hydra', 'quantum', 
-                   'phoenix']
-    game['hotels'] = map(lambda h: {'name': h, 'tiles': []}, hotel_names)
+    set_up_hotels(game)
     
     game['tilebag'] = [str(i) + a for i in range(1, 13) for a in 'ABCDEFGHI']
     shuffle(game['tilebag'])
@@ -176,11 +178,12 @@ def bank_shares(game, hotel):
 # rather than just a single value, because hotel mergers result in several 
 # subsequent actions that cannot be computed along the way.
 
-def append_action(game, action, player):
+def append_action(game, action_name, player, **action):
     """Append an action to the game's action queue which must be performed by 
     the given player.
     """
-    game['action_queue'].append(dict(action=action, player=player['name']))
+    action.update(dict(action=action_name, player=player['name']))
+    game['action_queue'].append(action)
 
 
 #### Playing tiles
@@ -189,9 +192,23 @@ def play_tile(game, player, tile):
     """If allowed, play tile from player's rack on to the board. Any new hotels 
     or mergers are taken care of.
     """
-    if tile not in player['rack']:
+    try:
+        player['rack'].remove(tile)
+    except ValueError:
         raise GamePlayNotAllowedError('must play tiles from tile rack')
+    game['action_queue'].pop(0)
     
-    player['rack'].remove(tile)
-    game['lonely_tiles'].append(tile)
+    if tile in tiles_that_create_hotels(game):
+        append_action(game, 'create_hotel', player, creation_tile=tile)
+    else:
+        game['lonely_tiles'].append(tile)
     player['rack'].append(game['tilebag'].pop())
+
+
+#### Creating hotels
+
+def create_hotel(game, player, hotel):
+    """Create the given hotel at the just-played tile."""
+    creation_tile = game['action_queue'][0]['creation_tile']
+    hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
+                                                if t in game['lonely_tiles']]
