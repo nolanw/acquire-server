@@ -62,6 +62,10 @@ def active_player(game):
     """Returns the player who must perform the next action."""
     return player_named(game, game['action_queue'][0]['player'])
 
+def player_after(game, player):
+    """Return the player who proceeds the given player in turn order."""
+    i = game['players'].index(player) + 1 - len(game['players'])
+    return game['players'][i]
 
 #### Game setup
 
@@ -230,7 +234,7 @@ def play_tile(game, player, tile):
             hotel_named(game, hotel)['tiles'].append(tile)
         else:
             game['lonely_tiles'].append(tile)
-        append_action(game, 'play_tile', player)
+        advance_turn(game, player)
     player['rack'].append(game['tilebag'].pop())
 
 
@@ -246,3 +250,14 @@ def create_hotel(game, player, hotel):
                                       'creation tile')
     hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
                                                 if t in game['lonely_tiles']]
+    game['action_queue'].pop(0)
+    advance_turn(game, player)
+
+
+#### End of turn
+
+def advance_turn(game, player):
+    """Move the turn along if the action queue is empty, assuming that it is 
+    the given player's turn.
+    """
+    append_action(game, 'play_tile', player_after(game, player))

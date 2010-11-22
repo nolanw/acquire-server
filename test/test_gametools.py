@@ -247,5 +247,38 @@ class TestHotelGrowth(ThreePlayerGameTestCase):
         self.assertEqual(len(self.phoenix['tiles']), 6)
     
 
+class TestTurnRotation(ThreePlayerGameTestCase):
+    
+    def setUp(self):
+        super(TestTurnRotation, self).setUp()
+        blank_board(self.game)
+    
+    def test_player_after(self):
+        player = gametools.active_player(self.game)
+        player = gametools.player_after(self.game, player)
+        self.assertEqual(player, self.game['players'][1])
+        player = gametools.player_after(self.game, player)
+        self.assertEqual(player, self.game['players'][2])
+        player = gametools.player_after(self.game, player)
+        self.assertEqual(player, self.game['players'][0])
+    
+    def test_turn_rotates_after_playing_tile(self):
+        player = gametools.active_player(self.game)
+        gametools.play_tile(self.game, player, player['rack'][0])
+        self.assertEqual(gametools.active_player(self.game), 
+                         gametools.player_after(self.game, player))
+    
+    def test_turn_rotates_after_creating_hotel(self):
+        self.game['lonely_tiles'] = ['1A']
+        player = gametools.active_player(self.game)
+        tile = '1B'
+        player['rack'][0] = tile
+        gametools.play_tile(self.game, player, tile)
+        hotel = gametools.hotel_named(self.game, 'zeta')
+        gametools.create_hotel(self.game, player, hotel)
+        self.assertEqual(gametools.active_player(self.game), 
+                         self.game['players'][1])
+    
+
 if __name__ == '__main__':
     unittest.main()
