@@ -71,17 +71,26 @@ class TestWhereIsTile(unittest.TestCase):
         self.assertEqual(gametools.where_is_tile(game, '8D'), 'quantum')
     
 
+tile_order = lambda t: (int(t[:-1]), t[-1])
+
 class TestTilesThatCreateAHotel(unittest.TestCase):
     
+    def setUp(self):
+        self.game = gametools.new_game()
+        gametools.set_up_hotels(self.game)
+    
     def test_tiles_that_create_hotels(self):
-        game = gametools.new_game()
-        gametools.set_up_hotels(game)
-        game['lonely_tiles'] = ['1A', '8E', '8F', '9I']
-        tile_order = lambda t: (int(t[:-1]), t[-1])
-        self.assertEqual(sorted(gametools.tiles_that_create_hotels(game), 
+        self.game['lonely_tiles'] = ['1A', '8E', '8F', '9I']
+        self.assertEqual(sorted(gametools.tiles_that_create_hotels(self.game), 
                                 key=tile_order), 
                          '1B 2A 7E 7F 8D 8G 8I 9E 9F 9H 10I'.split())
-
+    
+    def test_tiny_board(self):
+        self.game['lonely_tiles'] = ['1A']
+        self.assertEqual(sorted(gametools.tiles_that_create_hotels(self.game), 
+                                key=tile_order), 
+                         ['1B', '2A'])
+    
 
 class TestGrowsHotel(unittest.TestCase):
     
