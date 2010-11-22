@@ -2,6 +2,12 @@ import unittest
 
 from acquire import gametools
 
+def blank_board(game):
+    """Remove all tiles from the board."""
+    game['lonely_tiles'] = []
+    for hotel in game['hotels']:
+        hotel['tiles'] = []
+
 class TestAddingAndRemovingPlayers(unittest.TestCase):
     
     def setUp(self):
@@ -205,13 +211,11 @@ class TestHotelCreation(ThreePlayerGameTestCase):
                                    'zeta')
     
 
-class TestHotelGrowth(unittest.TestCase):
+class TestHotelGrowth(ThreePlayerGameTestCase):
     
     def setUp(self):
-        self.game = gametools.new_game()
-        gametools.add_player_named(self.game, 'champ')
-        gametools.start_game(self.game)
-        self.game['lonely_tiles'] = []
+        super(TestHotelGrowth, self).setUp()
+        blank_board(self.game)
         self.phoenix = gametools.hotel_named(self.game, 'phoenix')
         self.phoenix['tiles'] = ['1C', '2C']
     
