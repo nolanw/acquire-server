@@ -149,6 +149,12 @@ class TestTilePlay(ThreePlayerGameTestCase):
                                 tile)
         self.assertEqual(self.game['tilebag'][0], tile)
     
+    def test_other_player_play_tile(self):
+        other_player = self.game['players'][1]
+        tile = other_player['rack'][0]
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.play_tile(self.game, other_player, tile)
+    
     def test_rack_replenishment(self):
         player = gametools.active_player(self.game)
         tile = player['rack'][0]
@@ -158,14 +164,31 @@ class TestTilePlay(ThreePlayerGameTestCase):
 
 class TestHotelCreation(ThreePlayerGameTestCase):
     
-    def test_create_hotel(self):
+    def force_active_player_to_create_hotel(self):
         tile_to_play = gametools.tiles_that_create_hotels(self.game)[0]
         player = gametools.active_player(self.game)
         player['rack'][0] = tile_to_play
         gametools.play_tile(self.game, player, tile_to_play)
+    
+    def test_create_hotel(self):
+        self.force_active_player_to_create_hotel()
         sackson = gametools.hotel_named(self.game, 'sackson')
-        gametools.create_hotel(self.game, player, sackson)
+        gametools.create_hotel(self.game, gametools.active_player(self.game), 
+                               sackson)
         self.assertTrue(sackson['tiles'])
+    
+    def test_wrong_player_create_hotel(self):
+        self.force_active_player_to_create_hotel()
+        fusion = gametools.hotel_named(self.game, 'fusion')
+        other_player = self.game['players'][1]
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.create_hotel(self.game, other_player, fusion)
+    
+    def test_create_hotel_without_playing_tile(self):
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.create_hotel(self.game, 
+                                   gametools.active_player(self.game), 
+                                   'zeta')
     
 
 if __name__ == '__main__':

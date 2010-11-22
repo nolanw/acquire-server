@@ -185,6 +185,19 @@ def append_action(game, action_name, player, **action):
     action.update(dict(action=action_name, player=player['name']))
     game['action_queue'].append(action)
 
+def ensure_action(game, action_name, player):
+    """Raise a GamePlayNotAllowedError unless the next action is the given 
+    action name and must be performed by the given player.
+    
+    Returns the first action in the queue if the action and player are at the 
+    head of the queue.
+    """
+    first_action = game['action_queue'][0]
+    if first_action['player'] != player['name']:
+        raise GamePlayNotAllowedError('need %s to create, not %s' % 
+                                      (first_action['player'], player['name']))
+    return first_action
+
 
 #### Playing tiles
 
@@ -192,6 +205,7 @@ def play_tile(game, player, tile):
     """If allowed, play tile from player's rack on to the board. Any new hotels 
     or mergers are taken care of.
     """
+    ensure_action(game, 'play_tile', player)
     try:
         player['rack'].remove(tile)
     except ValueError:
@@ -209,6 +223,11 @@ def play_tile(game, player, tile):
 
 def create_hotel(game, player, hotel):
     """Create the given hotel at the just-played tile."""
-    creation_tile = game['action_queue'][0]['creation_tile']
+    first_action = ensure_action(game, 'create_hotel', player)
+    try:
+        creation_tile = first_action['creation_tile']
+    except KeyError:
+        raise GamePlayNotAllowedError('cannot create tile without playing a '
+                                      'creation tile')
     hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
                                                 if t in game['lonely_tiles']]
