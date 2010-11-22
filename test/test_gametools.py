@@ -75,6 +75,20 @@ class TestTilesThatCreateAHotel(unittest.TestCase):
         self.assertEqual(sorted(gametools.tiles_that_create_hotels(game), 
                                 key=tile_order), 
                          '1B 2A 7E 7F 8D 8G 8I 9E 9F 9H 10I'.split())
+
+
+class TestGrowsHotel(unittest.TestCase):
+    
+    def test_grows_hotel(self):
+        game = gametools.new_game()
+        gametools.add_player_named(game, 'champ')
+        gametools.start_game(game)
+        hydra = gametools.hotel_named(game, 'hydra')
+        hydra['tiles'] = ['6A', '6B', '7B']
+        for tile in ['5A']:
+            self.assertTrue(gametools.grows_hotel(game, tile), tile)
+        for tile in ['1C', '5C', '8E']:
+            self.assertFalse(gametools.grows_hotel(game, tile), tile)
     
 
 class ThreePlayerGameTestCase(unittest.TestCase):
@@ -189,6 +203,35 @@ class TestHotelCreation(ThreePlayerGameTestCase):
             gametools.create_hotel(self.game, 
                                    gametools.active_player(self.game), 
                                    'zeta')
+    
+
+class TestHotelGrowth(unittest.TestCase):
+    
+    def setUp(self):
+        self.game = gametools.new_game()
+        gametools.add_player_named(self.game, 'champ')
+        gametools.start_game(self.game)
+        self.game['lonely_tiles'] = []
+        self.phoenix = gametools.hotel_named(self.game, 'phoenix')
+        self.phoenix['tiles'] = ['1C', '2C']
+    
+    def test_one_tile_added_to_hotel(self):
+        player = self.game['players'][0]
+        tile = '2D'
+        player['rack'][0] = tile
+        gametools.play_tile(self.game, player, tile)
+        self.assertEqual(len(self.phoenix['tiles']), 3)
+        self.assertEqual(gametools.where_is_tile(self.game, tile), 'phoenix', 
+                         tile)
+    
+    def test_many_tiles_added_to_hotel(self):
+        for tile in ['2D', '1B', '1A', '2A']:
+            player = gametools.active_player(self.game)
+            player['rack'][0] = tile
+            gametools.play_tile(self.game, player, tile)
+            self.assertEqual(gametools.where_is_tile(self.game, tile), 
+                             'phoenix', tile)
+        self.assertEqual(len(self.phoenix['tiles']), 6)
     
 
 if __name__ == '__main__':

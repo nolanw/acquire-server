@@ -154,6 +154,16 @@ def tiles_that_create_hotels(game):
                              if t not in game['lonely_tiles'])
     return tiles
 
+def grows_hotel(game, tile):
+    """Return the hotel that would grow if tile was played, or None if no such 
+    hotel exists.
+    """
+    nearby = set(where_is_tile(game, t) for t in adjacent_tiles(tile))
+    for hotel in game['hotels']:
+        if hotel['name'] in nearby:
+            return hotel['name']
+    return None
+
 
 #### Hotels
 
@@ -215,7 +225,12 @@ def play_tile(game, player, tile):
     if tile in tiles_that_create_hotels(game):
         append_action(game, 'create_hotel', player, creation_tile=tile)
     else:
-        game['lonely_tiles'].append(tile)
+        hotel = grows_hotel(game, tile)
+        if hotel:
+            hotel_named(game, hotel)['tiles'].append(tile)
+        else:
+            game['lonely_tiles'].append(tile)
+        append_action(game, 'play_tile', player)
     player['rack'].append(game['tilebag'].pop())
 
 
