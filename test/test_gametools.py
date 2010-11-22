@@ -106,6 +106,26 @@ class TestGrowsHotel(unittest.TestCase):
             self.assertFalse(gametools.grows_hotel(game, tile), tile)
     
 
+class TestSharePrice(unittest.TestCase):
+    
+    def embiggen_and_check_prices(self, hotel, steps, prices):
+        for step, price in zip(steps, prices):
+            hotel['tiles'].extend([0] * step)
+            self.assertEqual(gametools.share_price(hotel), price)
+    
+    def test_tier_0(self):
+        zeta = {'name': 'zeta', 'tiles': []}
+        embiggen = [0, 2, 2, 3, 14]
+        expected = [0, 200, 400, 600, 800]
+        self.embiggen_and_check_prices(zeta, embiggen, expected)
+    
+    def test_tier_1(self):
+        hydra = {'name': 'hydra', 'tiles': []}
+        embiggen = [0, 2, 2, 3, 14]
+        expected = [0, 300, 500, 700, 900]
+        self.embiggen_and_check_prices(hydra, embiggen, expected)
+    
+
 class ThreePlayerGameTestCase(unittest.TestCase):
     
     def setUp(self):
@@ -276,8 +296,51 @@ class TestTurnRotation(ThreePlayerGameTestCase):
         gametools.play_tile(self.game, player, tile)
         hotel = gametools.hotel_named(self.game, 'zeta')
         gametools.create_hotel(self.game, player, hotel)
+        gametools.purchase(self.game, player, {})
         self.assertEqual(gametools.active_player(self.game), 
                          self.game['players'][1])
+    
+
+class TestPurchasingShares(ThreePlayerGameTestCase):
+    
+    def setUp(self):
+        super(TestPurchasingShares, self).setUp()
+        blank_board(self.game)
+    
+    def test_offer_purchase_after_hotel_creation(self):
+        self.game['lonely_tiles'] = ['7C']
+        player = gametools.active_player(self.game)
+        tile = player['rack'][0] = '8C'
+        gametools.play_tile(self.game, player, tile)
+        quantum = gametools.hotel_named(self.game, 'quantum')
+        gametools.create_hotel(self.game, player, quantum)
+        first_action = self.game['action_queue'][0]
+        self.assertEqual(first_action['action'], 'purchase')
+        self.assertEqual(first_action['player'], player['name'])
+    
+    def test_purchase_shares_in_one_hotel(self):
+        player = gametools.active_player(self.game)
+        zeta = gametools.hotel_named(self.game, 'zeta')
+        zeta['tiles'] = ['9C', '9D']
+        for tile in zeta['tiles']:
+            if tile in self.game['lonely_tiles']:
+                self.game['lonely_tiles'].remove(tile)
+        self.game['action_queue'][0]['action'] = 'purchase'
+        self.assertEqual(player['shares']['zeta'], 0)
+        gametools.purchase(self.game, player, {'zeta': 3})
+        self.assertEqual(player['shares']['zeta'], 3)
+        self.assertEqual(player['cash'], 5400)
+    
+    def test_do_not_offer_purchase_when_no_hotels_on_board(self):
+        player = gametools.active_player(self.game)
+        gametools.play_tile(self.game, player, player['rack'][0])
+        self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
+    
+    def test_purchase_too_many_shares(self):
+        player = gametools.active_player(self.game)
+        self.game['action_queue'][0]['action'] = 'purchase'
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.purchase(self.game, player, {'sackson': 4})
     
 
 if __name__ == '__main__':

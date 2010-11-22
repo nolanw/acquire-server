@@ -99,7 +99,8 @@ def start_game(game):
     for player in game['players']:
         player['rack'] = game['tilebag'][:6]
         del game['tilebag'][:6]
-        player['shares'] = {}
+        player['shares'] = dict(zip(hotel_names, [0] * len(hotel_names)))
+        player['cash'] = 6000
     
     game['action_queue'] = []
     append_action(game, 'play_tile', starting_player)
@@ -185,6 +186,25 @@ def bank_shares(game, hotel):
     """Returns the number of shares in the bank for the given hotel."""
     return 25 - sum(p['shares'].get(hotel['name'], 0) for p in game['players'])
 
+def share_price(hotel):
+    """Returns the price per share of hotel."""
+    tier = dict(zip(hotel_names, [0, 0, 1, 1, 1, 2, 2]))[hotel['name']]
+    size = len(hotel['tiles'])
+    if size < 2:
+        return 0
+    elif size < 6:
+        return (size + tier) * 100
+    elif size < 11:
+        return (6 + tier) * 100
+    elif size < 21:
+        return (7 + tier) * 100
+    elif size < 31:
+        return (8 + tier) * 100
+    elif size < 41:
+        return (9 + tier) * 100
+    else:
+        return (10 + tier) * 100
+
 
 #### Action queue
 #
@@ -241,7 +261,11 @@ def play_tile(game, player, tile):
 #### Creating hotels
 
 def create_hotel(game, player, hotel):
-    """Create the given hotel at the just-played tile."""
+    """Create the given hotel at the just-played tile.
+    
+    Raises GamePlayNotAllowedError if hotel creation is unexpected at this time
+    or by the given player.
+    """
     first_action = ensure_action(game, 'create_hotel', player)
     try:
         creation_tile = first_action['creation_tile']
@@ -254,10 +278,38 @@ def create_hotel(game, player, hotel):
     advance_turn(game, player)
 
 
+#### Buying shares
+
+def purchase(game, player, purchase_order):
+    """Purchase the ordered shares on behalf of the given player.
+    
+    Raises GamePlayNotAllowedError if purchase is unexpected at this time or by 
+    the given player, or if the purchase order breaks any rules:
+        - No more than three shares purchased at a time.
+        - Must be able to afford all of the ordered shares.
+        - Can only purchase shares in a hotel that is on the board.
+    """
+    ensure_action(game, 'purchase', player)
+    if sum(purchase_order.values()) > 3:
+        raise GamePlayNotAllowedError('can only purchase at most three shares')
+    for hotel_name, shares in purchase_order.iteritems():
+        player['shares'][hotel_name] += shares
+        player['cash'] -= shares * share_price(hotel_named(game, hotel_name))
+    game['action_queue'].pop(0)
+    advance_turn(game, player, can_purchase=False)
+
+
 #### End of turn
 
-def advance_turn(game, player):
+def advance_turn(game, player, can_purchase=True):
     """Move the turn along if the action queue is empty, assuming that it is 
-    the given player's turn.
+    the given player's turn. If can_purchase is True, the given player will be 
+    invited to purchase shares if possible. If this is impossible, or if 
+    can_purchase is False, it becomes the next player's turn.
     """
+    if can_purchase:
+        for hotel in game['hotels']:
+            if hotel['tiles'] and bank_shares(game, hotel):
+                append_action(game, 'purchase', player)
+                return
     append_action(game, 'play_tile', player_after(game, player))
