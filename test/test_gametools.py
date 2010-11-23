@@ -279,6 +279,14 @@ class TestHotelCreation(ThreePlayerGameTestCase):
             gametools.create_hotel(self.game, 
                                    gametools.active_player(self.game), hydra)
     
+    def test_tiles_no_longer_lonely(self):
+        self.force_active_player_to_create_hotel()
+        quantum = gametools.hotel_named(self.game, 'quantum')
+        gametools.create_hotel(self.game, gametools.active_player(self.game), 
+                               quantum)
+        for tile in quantum['tiles']:
+            self.assertTrue(tile not in self.game['lonely_tiles'])
+    
 
 class TestHotelGrowth(ThreePlayerGameTestCase):
     

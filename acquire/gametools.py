@@ -315,6 +315,9 @@ def create_hotel(game, player, hotel):
         raise GamePlayNotAllowedError('must create hotel that is off the board')
     hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
                                                 if t in game['lonely_tiles']]
+    for tile in hotel['tiles']:
+        if tile in game['lonely_tiles']:
+            game['lonely_tiles'].remove(tile)
     game['action_queue'].pop(0)
     advance_turn(game, player)
 
