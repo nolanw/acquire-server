@@ -227,6 +227,18 @@ class TestTilePlay(ThreePlayerGameTestCase):
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.play_tile(self.game, player, tile)
     
+    def test_playing_creation_tile_when_no_available_hotels(self):
+        blank_board(self.game)
+        tilesets = [['1A', '2A'], ['4A', '5A'], ['7A', '8A'], ['10A', '11A'], 
+                    ['1C', '2C'], ['4C', '5C'], ['7C', '8C']]
+        for hotel, tileset in zip(self.game['hotels'], tilesets):
+            hotel['tiles'] = tileset
+        self.game['lonely_tiles'] = ['1I']
+        player = gametools.active_player(self.game)
+        tile = player['rack'][0] = '2I'
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.play_tile(self.game, player, tile)
+    
 
 class TestHotelCreation(ThreePlayerGameTestCase):
     
@@ -255,6 +267,17 @@ class TestHotelCreation(ThreePlayerGameTestCase):
             gametools.create_hotel(self.game, 
                                    gametools.active_player(self.game), 
                                    'zeta')
+    
+    def test_create_hotel_already_on_board(self):
+        self.force_active_player_to_create_hotel()
+        player = gametools.active_player(self.game)
+        hydra = gametools.hotel_named(self.game, 'hydra')
+        gametools.create_hotel(self.game, player, hydra)
+        gametools.purchase(self.game, player, {})
+        self.force_active_player_to_create_hotel()
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.create_hotel(self.game, 
+                                   gametools.active_player(self.game), hydra)
     
 
 class TestHotelGrowth(ThreePlayerGameTestCase):

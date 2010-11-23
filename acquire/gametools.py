@@ -234,6 +234,11 @@ def tiles_adjacent_to_hotel(hotel):
                 tiles.add(adjacent)
     return tiles
 
+def hotels_off_board(game):
+    """Returns the list of hotels that are not on the board in the given game.
+    """
+    return [h for h in game['hotels'] if not h['tiles']]
+
 
 #### Action queue
 #
@@ -271,6 +276,9 @@ def play_tile(game, player, tile):
     ensure_action(game, 'play_tile', player)
     if tile in tiles_that_merge_safe_hotels(game):
         raise GamePlayNotAllowedError('tile %s is unplayable' % tile)
+    if not hotels_off_board(game) and tile in tiles_that_create_hotels(game):
+        raise GamePlayNotAllowedError('cannot create hotel when all are '
+                                      'already on board')
     try:
         player['rack'].remove(tile)
     except ValueError:
@@ -303,6 +311,8 @@ def create_hotel(game, player, hotel):
     except KeyError:
         raise GamePlayNotAllowedError('cannot create tile without playing a '
                                       'creation tile')
+    if hotel not in hotels_off_board(game):
+        raise GamePlayNotAllowedError('must create hotel that is off the board')
     hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
                                                 if t in game['lonely_tiles']]
     game['action_queue'].pop(0)
