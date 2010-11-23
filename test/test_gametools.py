@@ -306,6 +306,9 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         blank_board(self.game)
         self.player = gametools.active_player(self.game)
     
+    def make_purchase_the_next_action(self):
+        self.game['action_queue'][0]['action'] = 'purchase'
+    
     def test_offer_purchase_after_hotel_creation(self):
         self.game['lonely_tiles'] = ['7C']
         tile = self.player['rack'][0] = '8C'
@@ -319,7 +322,7 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
     def test_purchase_shares_in_one_hotel(self):
         zeta = gametools.hotel_named(self.game, 'zeta')
         zeta['tiles'] = ['9C', '9D']
-        self.game['action_queue'][0]['action'] = 'purchase'
+        self.make_purchase_the_next_action()
         self.assertEqual(self.player['shares']['zeta'], 0)
         gametools.purchase(self.game, self.player, {'zeta': 3})
         self.assertEqual(self.player['shares']['zeta'], 3)
@@ -330,14 +333,14 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
     
     def test_purchase_too_many_shares(self):
-        self.game['action_queue'][0]['action'] = 'purchase'
+        self.make_purchase_the_next_action()
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.purchase(self.game, self.player, {'sackson': 4})
     
     def test_purchase_shares_in_off_board_hotels(self):
         america = gametools.hotel_named(self.game, 'america')
         america['tiles'] = ['3E', '3D', '4D', '4C']
-        self.game['action_queue'][0]['action'] = 'purchase'
+        self.make_purchase_the_next_action()
         gametools.purchase(self.game, self.player, {'fusion': 1})
         self.assertEqual(self.player['shares']['fusion'], 0)
     
@@ -345,14 +348,14 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         sackson = gametools.hotel_named(self.game, 'sackson')
         sackson['tiles'] = ['11A', '11C', '12A', '12B', '12C']
         self.player['cash'] = 0
-        self.game['action_queue'][0]['action'] = 'purchase'
+        self.make_purchase_the_next_action()
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.purchase(self.game, self.player, {'sackson': 3})
     
     def test_purchase_shares_in_nonexistant_hotel(self):
         phoenix = gametools.hotel_named(self.game, 'phoenix')
         phoenix['tiles'] = ['8G', '8H', '8I']
-        self.game['action_queue'][0]['action'] = 'purchase'
+        self.make_purchase_the_next_action()
         gametools.purchase(self.game, self.player, {'febtober': 2})
         self.assertTrue('febtober' not in self.player['shares'])
     
