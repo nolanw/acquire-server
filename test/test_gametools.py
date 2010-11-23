@@ -287,6 +287,16 @@ class TestHotelCreation(ThreePlayerGameTestCase):
         for tile in quantum['tiles']:
             self.assertTrue(tile not in self.game['lonely_tiles'])
     
+    def test_tiles_included_two_adjacencies_away(self):
+        blank_board(self.game)
+        self.game['lonely_tiles'] = ['1A', '2A']
+        player = gametools.active_player(self.game)
+        tile = player['rack'][0] = '1B'
+        gametools.play_tile(self.game, player, tile)
+        zeta = gametools.hotel_named(self.game, 'zeta')
+        gametools.create_hotel(self.game, player, zeta)
+        self.assertTrue('2A' in zeta['tiles'])
+    
 
 class TestHotelGrowth(ThreePlayerGameTestCase):
     

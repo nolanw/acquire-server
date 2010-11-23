@@ -313,11 +313,16 @@ def create_hotel(game, player, hotel):
                                       'creation tile')
     if hotel not in hotels_off_board(game):
         raise GamePlayNotAllowedError('must create hotel that is off the board')
-    hotel['tiles'] = [creation_tile] + [t for t in adjacent_tiles(creation_tile) 
-                                                if t in game['lonely_tiles']]
-    for tile in hotel['tiles']:
-        if tile in game['lonely_tiles']:
-            game['lonely_tiles'].remove(tile)
+    hotel['tiles'] = [creation_tile]
+    while True:
+        any_added = False
+        for tile in tiles_adjacent_to_hotel(hotel):
+            if tile in game['lonely_tiles']:
+                hotel['tiles'].append(tile)
+                game['lonely_tiles'].remove(tile)
+                any_added = True
+        if not any_added:
+            break
     game['action_queue'].pop(0)
     advance_turn(game, player)
 
