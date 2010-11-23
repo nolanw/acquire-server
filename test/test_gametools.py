@@ -250,8 +250,7 @@ class TestHotelGrowth(ThreePlayerGameTestCase):
     
     def test_one_tile_added_to_hotel(self):
         player = self.game['players'][0]
-        tile = '2D'
-        player['rack'][0] = tile
+        tile = player['rack'][0] = '2D'
         gametools.play_tile(self.game, player, tile)
         self.assertEqual(len(self.phoenix['tiles']), 3)
         self.assertEqual(gametools.where_is_tile(self.game, tile), 'phoenix', 
@@ -291,8 +290,7 @@ class TestTurnRotation(ThreePlayerGameTestCase):
     def test_turn_rotates_after_creating_hotel(self):
         self.game['lonely_tiles'] = ['1A']
         player = gametools.active_player(self.game)
-        tile = '1B'
-        player['rack'][0] = tile
+        tile = player['rack'][0] = '1B'
         gametools.play_tile(self.game, player, tile)
         hotel = gametools.hotel_named(self.game, 'zeta')
         gametools.create_hotel(self.game, player, hotel)
