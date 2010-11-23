@@ -217,6 +217,16 @@ class TestTilePlay(ThreePlayerGameTestCase):
             with self.assertRaises(gametools.GamePlayNotAllowedError):
                 gametools.play_tile(self.game, player, tile)
     
+    def test_playing_safe_hotel_merge_tile(self):
+        player = gametools.active_player(self.game)
+        quantum = gametools.hotel_named(self.game, 'quantum')
+        quantum['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]
+        phoenix = gametools.hotel_named(self.game, 'phoenix')
+        phoenix['tiles'] = [str(i) + 'C' for i in xrange(1, 13)]
+        tile = player['rack'][0] = '4B'
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.play_tile(self.game, player, tile)
+    
 
 class TestHotelCreation(ThreePlayerGameTestCase):
     

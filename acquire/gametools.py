@@ -1,6 +1,7 @@
 # Game-manipulating functions. (Games are just dicts so they can be easily 
 # passed around and serialized and such.)
 
+from collections import defaultdict
 from random import shuffle
 
 
@@ -169,6 +170,17 @@ def grows_hotel(game, tile):
             return hotel['name']
     return None
 
+def tiles_that_merge_safe_hotels(game):
+    """Return a list of tiles that are unplayable because, if played, they would
+    merge a hotel that is safe.
+    """
+    tiles = defaultdict(int)
+    for hotel in game['hotels']:
+        if hotel_safe(hotel): 
+            for tile in tiles_adjacent_to_hotel(hotel):
+                tiles[tile] += 1
+    return [t for t, i in tiles.iteritems() if i > 1]
+
 
 #### Hotels
 
@@ -205,6 +217,23 @@ def share_price(hotel):
     else:
         return (10 + tier) * 100
 
+def hotel_safe(hotel):
+    """Returns True if the given hotel is safe (cannot be merged), or False 
+    otherwise.
+    """
+    return len(hotel['tiles']) > 10
+
+def tiles_adjacent_to_hotel(hotel):
+    """Returns the set of tiles that are adjacent to, but not in, the given 
+    hotel.
+    """
+    tiles = set()
+    for tile in hotel['tiles']:
+        for adjacent in adjacent_tiles(tile):
+            if adjacent not in hotel['tiles']:
+                tiles.add(adjacent)
+    return tiles
+
 
 #### Action queue
 #
@@ -240,6 +269,8 @@ def play_tile(game, player, tile):
     or mergers are taken care of.
     """
     ensure_action(game, 'play_tile', player)
+    if tile in tiles_that_merge_safe_hotels(game):
+        raise GamePlayNotAllowedError('tile %s is unplayable' % tile)
     try:
         player['rack'].remove(tile)
     except ValueError:
