@@ -293,8 +293,14 @@ def purchase(game, player, purchase_order):
     if sum(purchase_order.values()) > 3:
         raise GamePlayNotAllowedError('can only purchase at most three shares')
     for hotel_name, shares in purchase_order.iteritems():
-        player['shares'][hotel_name] += shares
-        player['cash'] -= shares * share_price(hotel_named(game, hotel_name))
+        hotel = hotel_named(game, hotel_name)
+        if hotel and hotel['tiles']:
+            cost = shares * share_price(hotel)
+            if cost > player['cash']:
+                raise GamePlayNotAllowedError('cannot afford purchase: %r' %
+                                              purchase_order)
+            player['shares'][hotel_name] += shares
+            player['cash'] -= cost
     game['action_queue'].pop(0)
     advance_turn(game, player, can_purchase=False)
 

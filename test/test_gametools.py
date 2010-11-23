@@ -304,41 +304,57 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
     def setUp(self):
         super(TestPurchasingShares, self).setUp()
         blank_board(self.game)
+        self.player = gametools.active_player(self.game)
     
     def test_offer_purchase_after_hotel_creation(self):
         self.game['lonely_tiles'] = ['7C']
-        player = gametools.active_player(self.game)
-        tile = player['rack'][0] = '8C'
-        gametools.play_tile(self.game, player, tile)
+        tile = self.player['rack'][0] = '8C'
+        gametools.play_tile(self.game, self.player, tile)
         quantum = gametools.hotel_named(self.game, 'quantum')
-        gametools.create_hotel(self.game, player, quantum)
+        gametools.create_hotel(self.game, self.player, quantum)
         first_action = self.game['action_queue'][0]
         self.assertEqual(first_action['action'], 'purchase')
-        self.assertEqual(first_action['player'], player['name'])
+        self.assertEqual(first_action['player'], self.player['name'])
     
     def test_purchase_shares_in_one_hotel(self):
-        player = gametools.active_player(self.game)
         zeta = gametools.hotel_named(self.game, 'zeta')
         zeta['tiles'] = ['9C', '9D']
-        for tile in zeta['tiles']:
-            if tile in self.game['lonely_tiles']:
-                self.game['lonely_tiles'].remove(tile)
         self.game['action_queue'][0]['action'] = 'purchase'
-        self.assertEqual(player['shares']['zeta'], 0)
-        gametools.purchase(self.game, player, {'zeta': 3})
-        self.assertEqual(player['shares']['zeta'], 3)
-        self.assertEqual(player['cash'], 5400)
+        self.assertEqual(self.player['shares']['zeta'], 0)
+        gametools.purchase(self.game, self.player, {'zeta': 3})
+        self.assertEqual(self.player['shares']['zeta'], 3)
+        self.assertEqual(self.player['cash'], 5400)
     
     def test_do_not_offer_purchase_when_no_hotels_on_board(self):
-        player = gametools.active_player(self.game)
-        gametools.play_tile(self.game, player, player['rack'][0])
+        gametools.play_tile(self.game, self.player, self.player['rack'][0])
         self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
     
     def test_purchase_too_many_shares(self):
-        player = gametools.active_player(self.game)
         self.game['action_queue'][0]['action'] = 'purchase'
         with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.purchase(self.game, player, {'sackson': 4})
+            gametools.purchase(self.game, self.player, {'sackson': 4})
+    
+    def test_purchase_shares_in_off_board_hotels(self):
+        america = gametools.hotel_named(self.game, 'america')
+        america['tiles'] = ['3E', '3D', '4D', '4C']
+        self.game['action_queue'][0]['action'] = 'purchase'
+        gametools.purchase(self.game, self.player, {'fusion': 1})
+        self.assertEqual(self.player['shares']['fusion'], 0)
+    
+    def test_unaffordable_purchase(self):
+        sackson = gametools.hotel_named(self.game, 'sackson')
+        sackson['tiles'] = ['11A', '11C', '12A', '12B', '12C']
+        self.player['cash'] = 0
+        self.game['action_queue'][0]['action'] = 'purchase'
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.purchase(self.game, self.player, {'sackson': 3})
+    
+    def test_purchase_shares_in_nonexistant_hotel(self):
+        phoenix = gametools.hotel_named(self.game, 'phoenix')
+        phoenix['tiles'] = ['8G', '8H', '8I']
+        self.game['action_queue'][0]['action'] = 'purchase'
+        gametools.purchase(self.game, self.player, {'febtober': 2})
+        self.assertTrue('febtober' not in self.player['shares'])
     
 
 if __name__ == '__main__':
