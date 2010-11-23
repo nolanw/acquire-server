@@ -390,6 +390,20 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         gametools.play_tile(self.game, self.player, self.player['rack'][0])
         self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
     
+    def test_do_not_offer_purchase_when_no_shares_affordable(self):
+        fusion = gametools.hotel_named(self.game, 'fusion')
+        fusion['tiles'] = ['8H', '9H']
+        self.player['cash'] = 200
+        gametools.play_tile(self.game, self.player, self.player['rack'][0])
+        self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
+    
+    def test_do_not_offer_purchase_when_no_shares_in_bank(self):
+        hydra = gametools.hotel_named(self.game, 'hydra')
+        hydra['tiles'] = ['2I', '3I']
+        self.game['players'][1]['shares']['hydra'] = 25
+        gametools.play_tile(self.game, self.player, self.player['rack'][0])
+        self.assertNotEqual(self.game['action_queue'][0]['action'], 'purchase')
+    
     def test_purchase_too_many_shares(self):
         self.make_purchase_the_next_action()
         with self.assertRaises(gametools.GamePlayNotAllowedError):
@@ -405,7 +419,9 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
     def test_unaffordable_purchase(self):
         sackson = gametools.hotel_named(self.game, 'sackson')
         sackson['tiles'] = ['11A', '11C', '12A', '12B', '12C']
-        self.player['cash'] = 0
+        zeta = gametools.hotel_named(self.game, 'zeta')
+        zeta['tiles'] = ['12H', '12I']
+        self.player['cash'] = 200
         self.make_purchase_the_next_action()
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.purchase(self.game, self.player, {'sackson': 3})

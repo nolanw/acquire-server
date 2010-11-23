@@ -364,7 +364,8 @@ def advance_turn(game, player, can_purchase=True):
     """
     if can_purchase:
         for hotel in game['hotels']:
-            if hotel['tiles'] and bank_shares(game, hotel):
+            if hotel['tiles'] and bank_shares(game, hotel) and \
+               player['cash'] > share_price(hotel):
                 append_action(game, 'purchase', player)
                 return
     append_action(game, 'play_tile', player_after(game, player))
