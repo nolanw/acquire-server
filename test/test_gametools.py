@@ -210,6 +210,13 @@ class TestTilePlay(ThreePlayerGameTestCase):
         gametools.play_tile(self.game, player, tile)
         self.assertEqual(len(player['rack']), 6)
     
+    def test_nonexistent_tile_play(self):
+        player = gametools.active_player(self.game)
+        nonexistent_tiles = ['0E', '11', '1J', '13C']
+        for tile in nonexistent_tiles:
+            with self.assertRaises(gametools.GamePlayNotAllowedError):
+                gametools.play_tile(self.game, player, tile)
+    
 
 class TestHotelCreation(ThreePlayerGameTestCase):
     
