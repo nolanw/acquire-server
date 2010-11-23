@@ -181,6 +181,20 @@ def tiles_that_merge_safe_hotels(game):
                 tiles[tile] += 1
     return [t for t, i in tiles.iteritems() if i > 1]
 
+def merge_survivors(game, tile):
+    """Returns a list of the possible surviving hotels that would be involved in
+    a merger if the given tile was played, or None if the given tile does not 
+    merge hotels.
+    """
+    adjacent_hotels = hotels_adjacent_to_tile(game, tile)
+    if len(adjacent_hotels) < 2:
+        return None
+    elif adjacent_hotels:
+        largest = max(map(lambda h: len(h['tiles']), adjacent_hotels))
+        return [h for h in adjacent_hotels if len(h['tiles']) == largest]
+    else:
+        return []
+
 
 #### Hotels
 
@@ -234,6 +248,15 @@ def tiles_adjacent_to_hotel(hotel):
                 tiles.add(adjacent)
     return tiles
 
+def hotels_adjacent_to_tile(game, tile):
+    """Returns the list of hotels with a tile adjacent to the given tile."""
+    adjacent_hotel_names = set()
+    for adjacent in adjacent_tiles(tile):
+        location = where_is_tile(game, adjacent)
+        if location in hotel_names:
+            adjacent_hotel_names.add(location)
+    return [hotel_named(game, name) for name in adjacent_hotel_names]
+
 def hotels_off_board(game):
     """Returns the list of hotels that are not on the board in the given game.
     """
@@ -262,9 +285,14 @@ def ensure_action(game, action_name, player):
     """
     first_action = game['action_queue'][0]
     if first_action['player'] != player['name']:
-        raise GamePlayNotAllowedError('need %s to create, not %s' % 
-                                      (first_action['player'], player['name']))
-    return first_action
+        raise GamePlayNotAllowedError('need %s to %s, not %s' % 
+                                      (first_action['player'], 
+                                       first_action['action'], player['name']))
+    elif first_action['action'] != action_name:
+        raise GamePlayNotAllowedError('next action is %s, not %s' % 
+                                      (first_action['action'], action_name))
+    else:
+        return first_action
 
 
 #### Playing tiles
@@ -272,6 +300,9 @@ def ensure_action(game, action_name, player):
 def play_tile(game, player, tile):
     """If allowed, play tile from player's rack on to the board. Any new hotels 
     or mergers are taken care of.
+    
+    Raises GamePlayNotAllowedError if the given tile cannot be played by the 
+    given player.
     """
     ensure_action(game, 'play_tile', player)
     if tile in tiles_that_merge_safe_hotels(game):
@@ -288,12 +319,23 @@ def play_tile(game, player, tile):
     if tile in tiles_that_create_hotels(game):
         append_action(game, 'create_hotel', player, creation_tile=tile)
     else:
-        hotel = grows_hotel(game, tile)
-        if hotel:
-            hotel_named(game, hotel)['tiles'].append(tile)
+        survivors = merge_survivors(game, tile) or []
+        survivors = [h['name'] for h in survivors]
+        if len(survivors) > 1:
+            append_action(game, 'choose_survivor', player, choices=survivors, 
+                          tile=tile)
+        elif survivors:
+            survivor = hotel_named(game, survivors[0])
+            more_to_do = merge_hotels(game, tile, survivor)
+            if not more_to_do:
+                advance_turn(game, player)
         else:
-            game['lonely_tiles'].append(tile)
-        advance_turn(game, player)
+            hotel = grows_hotel(game, tile)
+            if hotel:
+                hotel_named(game, hotel)['tiles'].append(tile)
+            else:
+                game['lonely_tiles'].append(tile)
+            advance_turn(game, player)
 
 
 #### Creating hotels
@@ -324,6 +366,61 @@ def create_hotel(game, player, hotel):
             break
     game['action_queue'].pop(0)
     advance_turn(game, player)
+
+
+#### Merging hotels
+
+def choose_survivor(game, player, survivor):
+    """If the given player was asked to choose a surviving hotel, do so and 
+    continue the merge.
+    
+    Raises GamePlayNotAllowedError if choosing a survivor is unexpected at this 
+    time, by the given player, or the survivor is an inappropriate choice.
+    """
+    first_action = ensure_action(game, 'choose_survivor', player)
+    if survivor['name'] not in first_action['choices']:
+        raise GamePlayNotAllowedError('survivor must be one of %s, not %s' % 
+                                      (first_action['choices'],
+                                       survivor['name']))
+    merge_hotels(game, first_action['tile'], survivor)
+
+def merge_hotels(game, tile, survivor):
+    """Merge all hotels adjacent to the given tile into survivor, paying out 
+    bonuses as appropriate, then queue actions on the game's action queue for 
+    players to handle their shares of disappearing hotels.
+    """
+    nearest_hundred_floor = lambda i: i - i % 100
+    disappearing = [h for h in hotels_adjacent_to_tile(game, tile) 
+                            if h != survivor]
+    for hotel in disappearing:
+        shares_held_by = lambda p: p['shares'][hotel['name']]
+        shares_held = set(shares_held_by(p) for p in game['players'])
+        most_held = max(shares_held)
+        if len(shares_held) > 1:
+            next_most_held = max(shares_held - set([most_held]))
+        else:
+            next_most_held = None
+        majority_holders = [p for p in game['players']
+                                    if shares_held_by(p) == most_held]
+        minority_holders = [p for p in game['players'] 
+                                    if next_most_held and 
+                                       shares_held_by(p) == next_most_held]
+        majority_bonus = share_price(hotel) * 10
+        minority_bonus = majority_bonus / 2
+        if len(majority_holders) > 1:
+            bonus = (majority_bonus + minority_bonus) / len(majority_holders)
+            majority_bonus = nearest_hundred_floor(bonus)
+            minority_bonus = 0
+        elif majority_holders:
+            if len(minority_holders) > 1:
+                bonus = minority_bonus / len(minority_holders)
+                minority_bonus = nearest_hundred_floor(bonus)
+            elif not minority_holders:
+                majority_bonus += minority_bonus
+        for p in majority_holders:
+            p['cash'] += majority_bonus
+        for p in minority_holders:
+            p['cash'] += minority_bonus
 
 
 #### Buying shares

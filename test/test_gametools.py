@@ -205,6 +205,7 @@ class TestTilePlay(ThreePlayerGameTestCase):
             gametools.play_tile(self.game, other_player, tile)
     
     def test_rack_replenishment(self):
+        blank_board(self.game)
         player = gametools.active_player(self.game)
         tile = player['rack'][0]
         gametools.play_tile(self.game, player, tile)
@@ -319,6 +320,7 @@ class TestHotelGrowth(ThreePlayerGameTestCase):
             player = gametools.active_player(self.game)
             player['rack'][0] = tile
             gametools.play_tile(self.game, player, tile)
+            gametools.purchase(self.game, player, {})
             self.assertEqual(gametools.where_is_tile(self.game, tile), 
                              'phoenix', tile)
         self.assertEqual(len(self.phoenix['tiles']), 6)
@@ -439,6 +441,76 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         self.make_purchase_the_next_action()
         gametools.purchase(self.game, self.player, {'febtober': 2})
         self.assertTrue('febtober' not in self.player['shares'])
+    
+
+class TestMerge(ThreePlayerGameTestCase):
+    
+    def setUp(self):
+        super(TestMerge, self).setUp()
+        blank_board(self.game)
+        self.quantum = gametools.hotel_named(self.game, 'quantum')
+        self.quantum['tiles'] = ['5H', '5I']
+        self.fusion = gametools.hotel_named(self.game, 'fusion')
+        self.fusion['tiles'] = ['3H', '3I']
+        self.player = gametools.active_player(self.game)
+        self.other_player, self.third_player = self.game['players'][1:3]
+        self.tile = self.player['rack'][0] = '4H'
+    
+    def merge_quantum_and_fusion(self, survivor=None):
+        gametools.play_tile(self.game, self.player, self.tile)
+        if survivor:
+            gametools.choose_survivor(self.game, self.player, survivor)
+    
+    def remember_cash(self):
+        self.cash_before = map(lambda p: p['cash'], self.game['players'])
+    
+    def cash_difference(self):
+        cash_after = map(lambda p: p['cash'], self.game['players'])
+        return [a - b for b, a in zip(self.cash_before, cash_after)]
+    
+    def test_choose_merge_survivor(self):
+        self.merge_quantum_and_fusion(self.quantum)
+    
+    def test_choose_merge_survivor_when_no_choice(self):
+        self.quantum['tiles'].append('5G')
+        self.merge_quantum_and_fusion()
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.choose_survivor(self.game, self.player, self.fusion)
+    
+    def test_choose_inappropriate_merge_survivor(self):
+        self.merge_quantum_and_fusion()
+        sackson = gametools.hotel_named(self.game, 'sackson')
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.choose_survivor(self.game, self.player, sackson)
+    
+    def test_single_shareholder_bonus_tier2(self):
+        self.player['shares']['quantum'] = 1
+        self.remember_cash()
+        self.merge_quantum_and_fusion(self.fusion)
+        self.assertEqual(self.cash_difference(), [6000, 0, 0])
+    
+    def test_majority_minority_shareholder_bonus_tier2(self):
+        self.player['shares']['quantum'] = 2
+        self.other_player['shares']['quantum'] = 1
+        self.remember_cash()
+        self.merge_quantum_and_fusion(self.fusion)
+        self.assertEqual(self.cash_difference(), [4000, 2000, 0])
+    
+    def test_tied_majority_shareholder_bonus_tier2(self):
+        self.player['shares']['quantum'] = 2
+        self.other_player['shares']['quantum'] = 2
+        self.third_player['shares']['quantum'] = 1
+        self.remember_cash()
+        self.merge_quantum_and_fusion(self.fusion)
+        self.assertEqual(self.cash_difference(), [3000, 3000, 0])
+    
+    def test_tied_minority_shareholder_bonus_tier2(self):
+        self.player['shares']['quantum'] = 2
+        self.other_player['shares']['quantum'] = 1
+        self.third_player['shares']['quantum'] = 1
+        self.remember_cash()
+        self.merge_quantum_and_fusion(self.fusion)
+        self.assertEqual(self.cash_difference(), [4000, 1000, 1000])
     
 
 if __name__ == '__main__':
