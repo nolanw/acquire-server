@@ -356,6 +356,13 @@ class TestTurnRotation(ThreePlayerGameTestCase):
         self.assertEqual(gametools.active_player(self.game), 
                          self.game['players'][1])
     
+    def test_tile_rack_replenished_at_end_of_turn(self):
+        self.game['lonely_tiles'] = ['9D']
+        player = gametools.active_player(self.game)
+        tile = player['rack'][0] = '8D'
+        gametools.play_tile(self.game, player, tile)
+        self.assertEqual(len(player['rack']), 5)
+    
 
 class TestPurchasingShares(ThreePlayerGameTestCase):
     

@@ -294,7 +294,6 @@ def play_tile(game, player, tile):
         else:
             game['lonely_tiles'].append(tile)
         advance_turn(game, player)
-    player['rack'].append(game['tilebag'].pop())
 
 
 #### Creating hotels
@@ -368,4 +367,5 @@ def advance_turn(game, player, can_purchase=True):
                player['cash'] > share_price(hotel):
                 append_action(game, 'purchase', player)
                 return
+    player['rack'].append(game['tilebag'].pop())
     append_action(game, 'play_tile', player_after(game, player))
