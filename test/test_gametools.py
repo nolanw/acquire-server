@@ -462,6 +462,11 @@ class TestMerge(ThreePlayerGameTestCase):
         if survivor:
             gametools.choose_survivor(self.game, self.player, survivor)
     
+    def merge_quantum_fusion_and_phoenix(self):
+        self.phoenix = gametools.hotel_named(self.game, 'phoenix')
+        self.phoenix['tiles'] = ['4G', '4F', '4E', '4D']
+        self.merge_quantum_and_fusion()
+    
     def remember_cash(self):
         self.cash_before = map(lambda p: p['cash'], self.game['players'])
     
@@ -516,7 +521,7 @@ class TestMerge(ThreePlayerGameTestCase):
     def test_disburse_shares_after_merge(self):
         self.player['shares']['quantum'] = 2
         self.merge_quantum_and_fusion(self.fusion)
-        gametools.disburse_shares(self.game, self.player, {})
+        gametools.disburse_shares(self.game, self.player, {'hotel': 'quantum'})
     
     def test_inappropriate_share_disbursement(self):
         self.player['shares']['fusion'] = 1
@@ -529,38 +534,50 @@ class TestMerge(ThreePlayerGameTestCase):
         self.other_player['shares']['quantum'] = 1
         self.merge_quantum_and_fusion(self.fusion)
         with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.disburse_shares(self.game, self.other_player, {})
+            gametools.disburse_shares(self.game, self.other_player, 
+                                      {'hotel': 'quantum'})
     
     def test_trade_shares(self):
         self.player['shares']['quantum'] = 2
         self.merge_quantum_and_fusion(self.fusion)
-        gametools.disburse_shares(self.game, self.player, {'trade': 2})
+        disbursement = {'trade': 2, 'hotel': 'quantum'}
+        gametools.disburse_shares(self.game, self.player, disbursement)
         self.assertEqual(self.player['shares']['fusion'], 1)
     
     def test_trade_more_shares_than_held(self):
         self.player['shares']['quantum'] = 2
         self.merge_quantum_and_fusion(self.fusion)
+        disbursement = {'trade': 4, 'hotel': 'quantum'}
         with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.disburse_shares(self.game, self.player, {'trade': 4})
+            gametools.disburse_shares(self.game, self.player, disbursement)
     
     def test_trade_for_more_shares_than_available(self):
         self.player['shares']['quantum'] = 10
         self.other_player['shares']['fusion'] = 22
         self.merge_quantum_and_fusion(self.fusion)
+        disbursement = {'trade': 10, 'hotel': 'quantum'}
         with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.disburse_shares(self.game, self.player, {'trade': 10})
+            gametools.disburse_shares(self.game, self.player, disbursement)
     
     def test_sell_shares(self):
         self.player['shares']['quantum'] = 1
         self.merge_quantum_and_fusion(self.fusion)
         self.remember_cash()
-        gametools.disburse_shares(self.game, self.player, {'sell': 1})
+        disbursement = {'sell': 1, 'hotel': 'quantum'}
+        gametools.disburse_shares(self.game, self.player, disbursement)
         self.assertEqual(self.cash_difference(), [400, 0, 0])
+    
+    def test_sell_more_shares_than_held(self):
+        self.player['shares']['quantum'] = 1
+        self.merge_quantum_and_fusion(self.fusion)
+        disbursement = {'sell': 2, 'hotel': 'quantum'}
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.disburse_shares(self.game, self.player, disbursement)
     
     def test_purchase_shares_after_merge(self):
         self.player['shares']['quantum'] = 1
         self.merge_quantum_and_fusion(self.fusion)
-        gametools.disburse_shares(self.game, self.player, {})
+        gametools.disburse_shares(self.game, self.player, {'hotel': 'quantum'})
         first_action = self.game['action_queue'][0]
         self.assertEqual(first_action['action'], 'purchase')
         self.assertEqual(first_action['player'], self.player['name'])
@@ -570,6 +587,20 @@ class TestMerge(ThreePlayerGameTestCase):
         tiles = ['3H', '3I', '4H', '5H', '5I']
         self.assertEqual(sorted(self.fusion['tiles']), tiles)
         self.assertTrue('4H' not in self.game['lonely_tiles'])
+    
+    def test_three_way_merge(self):
+        self.merge_quantum_fusion_and_phoenix()
+        tiles = ['3H', '3I', '4D', '4E', '4F', '4G', '4H', '5H', '5I']
+        self.assertEqual(sorted(self.phoenix['tiles']), tiles)
+    
+    def test_multiple_disappearing_hotels_disbursement_order1(self):
+        self.quantum['tiles'].append('6H')
+        self.player['shares']['quantum'] = 1
+        self.player['shares']['fusion'] = 1
+        self.merge_quantum_fusion_and_phoenix()
+        disbursement = {'sell': 1, 'hotel': 'fusion'}
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.disburse_shares(self.game, self.player, disbursement)
     
 
 if __name__ == '__main__':

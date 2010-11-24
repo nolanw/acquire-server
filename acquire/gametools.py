@@ -463,17 +463,20 @@ def disburse_shares(game, player, disbursement):
     Raises GamePlayNotAllowedError if a share disbursement from the given player 
     was not expected at this time.
     """
-    ensure_action(game, 'disburse_shares', player)
+    first_action = ensure_action(game, 'disburse_shares', player)
+    if first_action['hotel'] != disbursement['hotel']:
+        raise GamePlayNotAllowedError('expected disbursement of %s shares, not' 
+                                      ' %s shares' % (first_action['hotel'],
+                                                      disbursement['hotel']))
+    del disbursement['hotel']
     from_hotel = hotel_named(game, game['action_queue'][0]['hotel'])
+    shares_held = player['shares'][from_hotel['name']]
+    if sum(disbursement.values()) > shares_held:
+        raise GamePlayNotAllowedError('cannot disburse more shares than held')
     survivor = hotel_named(game, game['merge_info']['survivor'])
     if 'trade' in disbursement:
-        shares_held = player['shares'][from_hotel['name']]
         shares_desired = disbursement['trade'] / 2
-        if disbursement['trade'] > shares_held:
-            raise GamePlayNotAllowedError('cannot trade %d shares when %d are '
-                                          'held' % 
-                                          (disbursement['trade'], shares_held))
-        elif shares_desired > bank_shares(game, survivor):
+        if shares_desired > bank_shares(game, survivor):
             raise GamePlayNotAllowedError('not enough shares in the bank')
         player['shares'][from_hotel['name']] -= disbursement['trade']
         player['shares'][survivor['name']] += shares_desired
