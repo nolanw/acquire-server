@@ -538,7 +538,8 @@ def advance_turn(game, player, can_purchase=True):
     """Move the turn along if the action queue is empty, assuming that it is 
     the given player's turn. If can_purchase is True, the given player will be 
     invited to purchase shares if possible. If this is impossible, or if 
-    can_purchase is False, it becomes the next player's turn.
+    can_purchase is False, the player's rack is replenished and it becomes the 
+    next player's turn.
     """
     if can_purchase:
         for hotel in game['hotels']:
@@ -546,5 +547,9 @@ def advance_turn(game, player, can_purchase=True):
                player['cash'] > share_price(hotel):
                 append_action(game, 'purchase', player)
                 return
-    player['rack'].append(game['tilebag'].pop())
+    for tile in list(player['rack']):
+        if tile in tiles_that_merge_safe_hotels(game):
+            player['rack'].remove(tile)
+    while len(player['rack']) < 6:
+        player['rack'].append(game['tilebag'].pop())
     append_action(game, 'play_tile', player_after(game, player))

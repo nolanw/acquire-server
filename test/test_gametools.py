@@ -603,5 +603,27 @@ class TestMerge(ThreePlayerGameTestCase):
             gametools.disburse_shares(self.game, self.player, disbursement)
     
 
+class TestUnplayableTileReplenishment(ThreePlayerGameTestCase):
+    
+    def test_discard_and_replenish_unplayable_rack_tiles(self):
+        blank_board(self.game)
+        zeta = gametools.hotel_named(self.game, 'zeta')
+        zeta['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]
+        america = gametools.hotel_named(self.game, 'america')
+        america['tiles'] = [str(i) + 'C' for i in xrange(1, 13)]
+        player = gametools.active_player(self.game)
+        unplayable = [str(i) + 'B' for i in xrange(1, 6)]
+        player['rack'][1:6] = unplayable
+        for tile in unplayable:
+            if tile in self.game['tilebag']:
+                self.game['tilebag'].remove(tile)
+        tile = player['rack'][0] = '10D'
+        gametools.play_tile(self.game, player, tile)
+        gametools.purchase(self.game, player, {})
+        for tile in unplayable:
+            self.assertTrue(tile not in player['rack'])
+        self.assertEqual(len(player['rack']), 6)
+    
+
 if __name__ == '__main__':
     unittest.main()
