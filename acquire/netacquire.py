@@ -246,15 +246,6 @@ class NetAcquire(object):
         for obj in to_remove:
             collection.remove(obj)
     
-    def client_named(self, client_name):
-        """Returns the client who calls themself the given name, or None if 
-        there is no such client.
-        """
-        for fileno, name in self.names.iteritems():
-            if name == client_name:
-                return self.clients[fileno]
-        return None
-    
     def name_of_client(self, client_to_name):
         """Returns the name associated with the given client, or None if the 
         client has not finished the handshake.
