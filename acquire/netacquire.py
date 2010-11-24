@@ -106,16 +106,6 @@ class NetAcquire(object):
             elif fileno in self.clients:
                 self.disconnected(self.clients[fileno])
     
-    def start_handshake(self):
-        """Accept a client connection and start shaking hands."""
-        client, address = self.server.accept()
-        self.clients[client.fileno()] = client
-        self.client_queues[client.fileno()] = Queue.Queue()
-        self.inputs.append(client)
-        client.send(str(self.announce))
-        self.shaking_hands[client.fileno()] = ''
-        self.log.debug("New client from %s", address[0])
-    
     def route_directives(self, client, wiredata):
         """Parse directives from wiredata, as sent from client, and pass them 
         along to directive-specific handlers.
@@ -160,6 +150,16 @@ class NetAcquire(object):
     
     
     #### Handshake and logging in.
+    
+    def start_handshake(self):
+        """Accept a client connection and start shaking hands."""
+        client, address = self.server.accept()
+        self.clients[client.fileno()] = client
+        self.client_queues[client.fileno()] = Queue.Queue()
+        self.inputs.append(client)
+        client.send(str(self.announce))
+        self.shaking_hands[client.fileno()] = ''
+        self.log.debug("New client from %s", address[0])
     
     def PL_directive(self, client, directive):
         """The client is continuing the handshake by telling us their name."""
