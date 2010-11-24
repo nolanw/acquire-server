@@ -73,7 +73,7 @@ class NetAcquire(object):
                 else:
                     self.disconnected(client)
             else:
-                log.warning('unknown input file descriptor %r', fileno)
+                self.log.warning('unknown input file descriptor %r', fileno)
                 self.remove_fileno(self.inputs, fileno)
         
         for fileno in write:
@@ -118,8 +118,13 @@ class NetAcquire(object):
         along to directive-specific handlers.
         """
         for directive in Directive.parse_multiple(wiredata):
-            if hasattr(self, directive.code):
-                getattr(self, directive.code)(client, directive)
+            handler_name = directive.code + '_directive'
+            if hasattr(self, handler_name):
+                try:
+                    getattr(self, handler_name)(client, directive)
+                except Exception:
+                    self.log.exception('error handling %s directive', 
+                                       directive.code)
             else:
                 self.log.debug('unimplemented directive %s', directive.code)
     
@@ -130,13 +135,34 @@ class NetAcquire(object):
         message.update(dict(path=path))
         self.backend_queue.put(message)
     
-    def PL(self, client, directive):
+    def PL_directive(self, client, directive):
         """The client is continuing the handshake by telling us their name."""
         if client in self.shaking_hands:
             self.shaking_hands.remove(client)
             name = self.names[client.fileno()] = directive[0]
             self.send_to_backend('login', player=name)
             self.log.debug('attempting login for %s', name)
+    
+    def disconnected(self, client):
+        """A client disconnected, so forget all about them."""
+        fileno = client.fileno()
+        if fileno in self.names:
+            self.send_to_backend('logout', player=self.names[fileno])
+        for collection in [self.client_queues, self.names, self.clients]:
+            if fileno in collection:
+                del collection[fileno]
+        self.remove_fileno(self.inputs, fileno)
+        self.log.debug('client %d has disconnected', fileno)
+    
+    def remove_fileno(self, collection, fileno):
+        """Remove all objects in collection whose fileno is given."""
+        to_remove = []
+        for obj in collection:
+            if obj == fileno or (hasattr(obj, 'fileno') and 
+                                 obj.fileno() == fileno):
+                to_remove.append(obj)
+        for obj in to_remove:
+            collection.remove(obj)
     
 
 if __name__ == '__main__':
