@@ -299,6 +299,22 @@ class TestHotelCreation(ThreePlayerGameTestCase):
         gametools.create_hotel(self.game, player, zeta)
         self.assertTrue('2A' in zeta['tiles'])
     
+    def test_founders_share(self):
+        self.force_active_player_to_create_hotel()
+        player = gametools.active_player(self.game)
+        sackson = gametools.hotel_named(self.game, 'sackson')
+        gametools.create_hotel(self.game, player, sackson)
+        self.assertEqual(player['shares']['sackson'], 1)
+    
+    def test_no_founders_share_when_none_available(self):
+        self.force_active_player_to_create_hotel()
+        player = gametools.active_player(self.game)
+        other_player = self.game['players'][1]
+        america = gametools.hotel_named(self.game, 'america')
+        other_player['shares']['america'] = 25
+        gametools.create_hotel(self.game, player, america)
+        self.assertEqual(player['shares']['america'], 0)
+    
 
 class TestHotelGrowth(ThreePlayerGameTestCase):
     

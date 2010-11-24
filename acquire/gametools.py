@@ -379,6 +379,8 @@ def create_hotel(game, player, hotel):
                 any_added = True
         if not any_added:
             break
+    if bank_shares(game, hotel) > 0:
+        player['shares'][hotel['name']] += 1
     game['action_queue'].pop(0)
     advance_turn(game, player)
 
