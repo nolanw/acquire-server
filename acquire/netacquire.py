@@ -44,6 +44,8 @@ class NetAcquire(object):
         self.backend_queue = Queue.Queue()
         self.clients = {}
         self.client_queues = {}
+        self.names = {}
+        self.shaking_hands = set()
         self.announce = Directive("SP", "2", "0", "4", str(server_name))
         
         # Listen forever until end of file (CTRL-D on *nix) seen on stdin.
@@ -105,8 +107,11 @@ class NetAcquire(object):
         """Accept a client connection and start shaking hands."""
         client, address = self.server.accept()
         self.clients[client.fileno()] = client
+        self.client_queues[client.fileno()] = Queue.Queue()
         self.inputs.append(client)
         client.send(str(self.announce))
+        self.shaking_hands.add(client)
+        self.log.debug("New client from %s", address[0])
     
     def route_directives(self, client, wiredata):
         """Parse directives from wiredata, as sent from client, and pass them 
@@ -117,6 +122,21 @@ class NetAcquire(object):
                 getattr(self, directive.code)(client, directive)
             else:
                 self.log.debug('unimplemented directive %s', directive.code)
+    
+    def send_to_backend(self, path, **message):
+        """Send a message with the given path and key-value pairs to the 
+        backend.
+        """
+        message.update(dict(path=path))
+        self.backend_queue.put(message)
+    
+    def PL(self, client, directive):
+        """The client is continuing the handshake by telling us their name."""
+        if client in self.shaking_hands:
+            self.shaking_hands.remove(client)
+            name = self.names[client.fileno()] = directive[0]
+            self.send_to_backend('login', player=name)
+            self.log.debug('attempting login for %s', name)
     
 
 if __name__ == '__main__':
