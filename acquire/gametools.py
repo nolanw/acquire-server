@@ -445,6 +445,7 @@ def merge_hotels(game, merging_player, tile, survivor):
     disappearing = [h for h in hotels_adjacent_to_tile(game, tile) 
                             if h != survivor]
     pay_merge_bonuses(game, disappearing)
+    disappearing.sort(key=lambda h: -len(h['tiles']))
     for hotel in disappearing:
         for player in player_order(game, merging_player):
             if player['shares'][hotel['name']]:

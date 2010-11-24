@@ -609,12 +609,21 @@ class TestMerge(ThreePlayerGameTestCase):
         tiles = ['3H', '3I', '4D', '4E', '4F', '4G', '4H', '5H', '5I']
         self.assertEqual(sorted(self.phoenix['tiles']), tiles)
     
-    def test_multiple_disappearing_hotels_disbursement_order(self):
+    def test_multiple_disappearing_hotels_disbursement_order1(self):
         self.quantum['tiles'].append('6H')
         self.player['shares']['quantum'] = 1
         self.player['shares']['fusion'] = 1
         self.merge_quantum_fusion_and_phoenix()
         disbursement = {'sell': 1, 'hotel': 'fusion'}
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.disburse_shares(self.game, self.player, disbursement)
+    
+    def test_multiple_disappearing_hotels_disbursement_order2(self):
+        self.fusion['tiles'].append('2H')
+        self.player['shares']['quantum'] = 1
+        self.player['shares']['fusion'] = 1
+        self.merge_quantum_fusion_and_phoenix()
+        disbursement = {'sell': 1, 'hotel': 'quantum'}
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.disburse_shares(self.game, self.player, disbursement)
     
