@@ -593,7 +593,7 @@ class TestMerge(ThreePlayerGameTestCase):
         tiles = ['3H', '3I', '4D', '4E', '4F', '4G', '4H', '5H', '5I']
         self.assertEqual(sorted(self.phoenix['tiles']), tiles)
     
-    def test_multiple_disappearing_hotels_disbursement_order1(self):
+    def test_multiple_disappearing_hotels_disbursement_order(self):
         self.quantum['tiles'].append('6H')
         self.player['shares']['quantum'] = 1
         self.player['shares']['fusion'] = 1
