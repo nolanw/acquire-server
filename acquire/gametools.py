@@ -277,6 +277,10 @@ def hotels_off_board(game):
     """
     return [h for h in game['hotels'] if not h['tiles']]
 
+def hotels_on_board(game):
+    """Returns the list of hotels that are on the board in the given game."""
+    return [h for h in game['hotels'] if h['tiles']]
+
 
 #### Action queue
 #
@@ -510,29 +514,39 @@ def clean_up_merge(game):
 
 #### Buying shares
 
-def purchase(game, player, purchase_order):
-    """Purchase the ordered shares on behalf of the given player.
+def purchase(game, player, purchase_order, end_game=False):
+    """Purchase the ordered shares on behalf of the given player. If end_game is
+    True, attempt to end the game.
     
     Raises GamePlayNotAllowedError if purchase is unexpected at this time or by 
     the given player, or if the purchase order breaks any rules:
         - No more than three shares purchased at a time.
         - Must be able to afford all of the ordered shares.
         - Can only purchase shares in a hotel that is on the board.
+    or if end_game is True but the game cannot end.
     """
     ensure_action(game, 'purchase', player)
     if sum(purchase_order.values()) > 3:
         raise GamePlayNotAllowedError('can only purchase at most three shares')
+    purchases = {}
+    subtotal = 0
     for hotel_name, shares in purchase_order.iteritems():
         hotel = hotel_named(game, hotel_name)
         if hotel and hotel['tiles']:
             cost = shares * share_price(hotel)
-            if cost > player['cash']:
-                raise GamePlayNotAllowedError('cannot afford purchase: %r' %
-                                              purchase_order)
-            player['shares'][hotel_name] += shares
-            player['cash'] -= cost
+            purchases[hotel['name']] = shares
+            subtotal += cost
+    if subtotal > player['cash']:
+        raise GamePlayNotAllowedError('cannot afford purchases: %r' % 
+                                      purchase_order)
+    for hotel_name, shares in purchases.iteritems():
+        player['shares'][hotel_name] += shares
+    player['cash'] -= subtotal
     game['action_queue'].pop(0)
-    advance_turn(game, player, can_purchase=False)
+    if end_game:
+        game_over(game)
+    else:
+        advance_turn(game, player, can_purchase=False)
 
 
 #### End of turn
@@ -556,3 +570,29 @@ def advance_turn(game, player, can_purchase=True):
     while len(player['rack']) < 6:
         player['rack'].append(game['tilebag'].pop())
     append_action(game, 'play_tile', player_after(game, player))
+
+
+#### End of game
+
+def game_over(game):
+    """Attempt to end the game, paying out final bonuses and selling as many 
+    shares as possible.
+    
+    Raises GamePlayNotAllowedError if the game cannot end right now.
+    """
+    if 'over' in game:
+        raise GamePlayNotAllowedError('game is already over')
+    over_40 = [h for h in game['hotels'] if len(h['tiles']) > 40]
+    unsafe_on_board = [h for h in hotels_on_board(game)
+                               if h['tiles'] and len(h['tiles']) < 11]
+    if not over_40 and unsafe_on_board:
+        raise GamePlayNotAllowedError('neither end-game condition met')
+    for hotel in hotels_on_board(game):
+        pay_merge_bonuses(game, [hotel])
+        for player in game['players']:
+            shares = player['shares']
+            name = hotel['name']
+            if shares[name]:
+                player['cash'] += share_price(hotel) * shares[name]
+                shares[name] = 0
+    game['over'] = True

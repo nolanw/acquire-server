@@ -136,6 +136,13 @@ class ThreePlayerGameTestCase(unittest.TestCase):
         gametools.add_player_named(self.game, 'testvetica')
         self.starting_tiles = gametools.start_game(self.game)
     
+    def remember_cash(self):
+        self.cash_before = map(lambda p: p['cash'], self.game['players'])
+    
+    def cash_difference(self):
+        cash_after = map(lambda p: p['cash'], self.game['players'])
+        return [a - b for b, a in zip(self.cash_before, cash_after)]
+    
 
 class TestGameSetup(ThreePlayerGameTestCase):
     
@@ -483,13 +490,6 @@ class TestMerge(ThreePlayerGameTestCase):
         self.phoenix['tiles'] = ['4G', '4F', '4E', '4D']
         self.merge_quantum_and_fusion()
     
-    def remember_cash(self):
-        self.cash_before = map(lambda p: p['cash'], self.game['players'])
-    
-    def cash_difference(self):
-        cash_after = map(lambda p: p['cash'], self.game['players'])
-        return [a - b for b, a in zip(self.cash_before, cash_after)]
-    
     def test_choose_merge_survivor(self):
         self.merge_quantum_and_fusion(self.quantum)
     
@@ -648,6 +648,37 @@ class TestUnplayableTileReplenishment(ThreePlayerGameTestCase):
         for tile in unplayable:
             self.assertTrue(tile not in player['rack'])
         self.assertEqual(len(player['rack']), 6)
+    
+
+class TestEndOfGame(ThreePlayerGameTestCase):
+    
+    def setUp(self):
+        super(TestEndOfGame, self).setUp()
+        blank_board(self.game)
+        self.player = gametools.active_player(self.game)
+        self.sackson = gametools.hotel_named(self.game, 'sackson')
+    
+    def test_inappropriate_game_end(self):
+        self.sackson['tiles'] = ['1A', '2A']
+        gametools.play_tile(self.game, self.player, self.player['rack'][0])
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.purchase(self.game, self.player, {}, end_game=True)
+    
+    def test_appropriate_game_end(self):
+        self.sackson['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]
+        tile = self.player['rack'][0] = '1D'
+        gametools.play_tile(self.game, self.player, tile)
+        gametools.purchase(self.game, self.player, {}, end_game=True)
+        self.assertTrue(self.game['over'])
+    
+    def test_bonuses_awarded_at_game_end(self):
+        self.sackson['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]
+        self.player['shares']['sackson'] = 1
+        tile = self.player['rack'][0] = '1D'
+        self.remember_cash()
+        gametools.play_tile(self.game, self.player, tile)
+        gametools.purchase(self.game, self.player, {}, end_game=True)
+        self.assertEqual(self.cash_difference(), [11200, 0, 0])
     
 
 if __name__ == '__main__':
