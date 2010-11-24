@@ -45,7 +45,7 @@ class NetAcquire(object):
         self.clients = {}
         self.client_queues = {}
         self.names = {}
-        self.shaking_hands = set()
+        self.shaking_hands = {}
         self.announce = Directive("SP", "2", "0", "4", str(server_name))
         
         # Listen forever until end of file (CTRL-D on *nix) seen on stdin.
@@ -113,7 +113,7 @@ class NetAcquire(object):
         self.client_queues[client.fileno()] = Queue.Queue()
         self.inputs.append(client)
         client.send(str(self.announce))
-        self.shaking_hands.add(client)
+        self.shaking_hands[client.fileno()] = ''
         self.log.debug("New client from %s", address[0])
     
     def route_directives(self, client, wiredata):
@@ -163,21 +163,58 @@ class NetAcquire(object):
     
     def PL_directive(self, client, directive):
         """The client is continuing the handshake by telling us their name."""
-        if client in self.shaking_hands:
-            name = self.names[client.fileno()] = directive[0]
+        if client.fileno() in self.shaking_hands:
+            name = self.shaking_hands[client.fileno()] = directive[0]
             self.send_to_backend('login', player=name)
-            self.log.debug('attempting login for %s', name)
+            self.log.debug('Attempting login for %s...', name)
     
     def logged_in_message(self, message):
         """Someone just logged in. Finish the handshake if it's one of this 
         frontend's clients.
         """
-        client = self.client_named(message['player'])
+        client = self.handshaking_client_named(message['player'])
         if client:
-            self.shaking_hands.discard(client)
+            fileno = client.fileno()
+            self.names[fileno] = self.shaking_hands[fileno]
+            del self.shaking_hands[fileno]
             self.send_to_client(client, Directive('SS', 3))
         announcement = '* %s has entered the lobby.' % message['player']
         self.send_to_all_clients(Directive('LM', announcement))
+    
+    def duplicate_name_message(self, message):
+        """Someone tried to log in but the name was taken. Cancel the handshake 
+        if it's one of this frontend's clients.
+        """
+        client = self.handshaking_client_named(message['player'])
+        if client:
+            error = 'Duplicate user Nickname'
+            detail = ("That nickname is already in use. Please pick a "
+                      "different one. If you are reconnecting with the "
+                      "same nickname, please wait a minute and try again.")
+            client.send(str(Directive('M', '"E;%s;%s"' % (error, detail))))
+            self.disconnected(client)
+    
+    
+    #### Chat.
+    
+    def BM_directive(self, client, directive):
+        """The client wants to send a chat message somewhere."""
+        target = directive[0]
+        if target == 'Lobby':
+            path = 'lobby_chat'
+        elif target == 'Game Room':
+            path = 'game_chat'
+        else:
+            log.debug('unknown message target %s', target)
+            return
+        chat_message = Directive.unescape_param(directive[1])
+        self.send_to_backend(path, chat_message=chat_message, 
+                             player=self.name_of_client(client))
+    
+    def lobby_chat_message(self, message):
+        """A chat message destined for everyone in the lobby."""
+        cited_message = '%s: %s' % (message['player'], message['chat_message'])
+        self.send_to_all_clients(Directive('LM', cited_message))
     
     
     #### Disconnection and logging out.
@@ -187,10 +224,13 @@ class NetAcquire(object):
         fileno = client.fileno()
         if fileno in self.names:
             self.send_to_backend('logout', player=self.names[fileno])
-        for collection in [self.client_queues, self.names, self.clients]:
+        client_collections = [self.client_queues, self.names, self.clients, 
+                              self.shaking_hands]
+        for collection in client_collections:
             if fileno in collection:
                 del collection[fileno]
         self.remove_fileno(self.inputs, fileno)
+        client.close()
         self.log.debug('client %d has disconnected', fileno)
     
     
@@ -214,6 +254,23 @@ class NetAcquire(object):
             if name == client_name:
                 return self.clients[fileno]
         return None
+    
+    def name_of_client(self, client_to_name):
+        """Returns the name associated with the given client, or None if the 
+        client has not finished the handshake.
+        """
+        for fileno, client in self.clients.iteritems():
+            if client == client_to_name:
+                return self.names.get(fileno, None)
+        return None
+    
+    def handshaking_client_named(self, client_name):
+        """Returns the client who is in the midst of the handshake who wants 
+        the given name, or None if there is no such client.
+        """
+        for fileno, name in self.shaking_hands.iteritems():
+            if name == client_name:
+                return self.clients[fileno]
     
 
 if __name__ == '__main__':

@@ -82,6 +82,9 @@ class Backend(object):
         message.update(dict(path=path))
         self.pub_queue.put(message)
     
+    
+    #### Logging in and out.
+    
     def login_message(self, message):
         """A player wants to log in. Deny them if another player by that name 
         has already logged in.
@@ -89,7 +92,7 @@ class Backend(object):
         player = message['player']
         if player in self.players:
             self.send_to_frontends('duplicate_name', player=player)
-            self.log.debug('Already have a player named %s', player)
+            self.log.debug('Already have a player named %s.', player)
         else:
             self.players.add(player)
             self.send_to_frontends('logged_in', player=player)
@@ -100,6 +103,14 @@ class Backend(object):
         player = message['player']
         self.players.discard(player)
         self.log.debug('Goodbye %s', player)
+    
+    
+    #### Chat.
+
+    def lobby_chat_message(self, message):
+        """Someone wants to talk to the lobby."""
+        del message['path']
+        self.send_to_frontends('lobby_chat', **message)
     
 
 if __name__ == '__main__':
