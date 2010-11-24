@@ -55,6 +55,9 @@ class NetAcquire(object):
     def _runloop(self):
         """A single run-through of all sockets handled by this frontend."""
         outputs = [] if self.backend_queue.empty() else [self.backend_push]
+        for fileno, q in self.client_queues.iteritems():
+            if not q.empty():
+                outputs.append(fileno)
         read, write, error = zmq.select(self.inputs, outputs, self.inputs)
         for fileno in read:
             if fileno == self.backend_sub:
@@ -128,6 +131,26 @@ class NetAcquire(object):
             else:
                 self.log.debug('unimplemented directive %s', directive.code)
     
+    def send_to_client(self, client, directive):
+        """Send a directive to a client."""
+        self.client_queues[client.fileno()].put(str(directive))
+    
+    def send_to_all_clients(self, directive):
+        """Send a directive to all connected clients."""
+        for client in self.clients.itervalues():
+            self.send_to_client(client, directive)
+    
+    def route_message(self, message):
+        """Pass message along to a path-specific handler."""
+        handler_name = message['path'] + '_message'
+        if hasattr(self, handler_name):
+            try:
+                getattr(self, handler_name)(message)
+            except Exception:
+                self.log.exception('error handling %s message', message['path'])
+        else:
+            self.log.debug('unimplemented message %s', message['path'])
+    
     def send_to_backend(self, path, **message):
         """Send a message with the given path and key-value pairs to the 
         backend.
@@ -135,13 +158,29 @@ class NetAcquire(object):
         message.update(dict(path=path))
         self.backend_queue.put(message)
     
+    
+    #### Handshake and logging in.
+    
     def PL_directive(self, client, directive):
         """The client is continuing the handshake by telling us their name."""
         if client in self.shaking_hands:
-            self.shaking_hands.remove(client)
             name = self.names[client.fileno()] = directive[0]
             self.send_to_backend('login', player=name)
             self.log.debug('attempting login for %s', name)
+    
+    def logged_in_message(self, message):
+        """Someone just logged in. Finish the handshake if it's one of this 
+        frontend's clients.
+        """
+        client = self.client_named(message['player'])
+        if client:
+            self.shaking_hands.discard(client)
+            self.send_to_client(client, Directive('SS', 3))
+        announcement = '* %s has entered the lobby.' % message['player']
+        self.send_to_all_clients(Directive('LM', announcement))
+    
+    
+    #### Disconnection and logging out.
     
     def disconnected(self, client):
         """A client disconnected, so forget all about them."""
@@ -154,6 +193,9 @@ class NetAcquire(object):
         self.remove_fileno(self.inputs, fileno)
         self.log.debug('client %d has disconnected', fileno)
     
+    
+    #### Helpers
+    
     def remove_fileno(self, collection, fileno):
         """Remove all objects in collection whose fileno is given."""
         to_remove = []
@@ -163,6 +205,15 @@ class NetAcquire(object):
                 to_remove.append(obj)
         for obj in to_remove:
             collection.remove(obj)
+    
+    def client_named(self, client_name):
+        """Returns the client who calls themself the given name, or None if 
+        there is no such client.
+        """
+        for fileno, name in self.names.iteritems():
+            if name == client_name:
+                return self.clients[fileno]
+        return None
     
 
 if __name__ == '__main__':

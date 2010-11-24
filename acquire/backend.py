@@ -75,6 +75,32 @@ class Backend(object):
         else:
             self.log.debug('unimplemented message %s', message['path'])
     
+    def send_to_frontends(self, path, **message):
+        """Send a message with the given path and key-value pairs to the 
+        frontends.
+        """
+        message.update(dict(path=path))
+        self.pub_queue.put(message)
+    
+    def login_message(self, message):
+        """A player wants to log in. Deny them if another player by that name 
+        has already logged in.
+        """
+        player = message['player']
+        if player in self.players:
+            self.send_to_frontends('duplicate_name', player=player)
+            self.log.debug('Already have a player named %s', player)
+        else:
+            self.players.add(player)
+            self.send_to_frontends('logged_in', player=player)
+            self.log.debug('Hello %s!', player)
+    
+    def logout_message(self, message):
+        """A player has left."""
+        player = message['player']
+        self.players.discard(player)
+        self.log.debug('Goodbye %s', player)
+    
 
 if __name__ == '__main__':
     Backend().run()
