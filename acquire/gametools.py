@@ -68,6 +68,21 @@ def player_after(game, player):
     i = game['players'].index(player) + 1 - len(game['players'])
     return game['players'][i]
 
+def player_order(game, starting_player):
+    """Return a generator that yields each player in turn order, beginning with 
+    the given starting player.
+    """
+    players = game['players']
+    num_players = len(game['players'])
+    next_player = lambda p: players[(players.index(p) + 1) % len(players)]
+    cur = starting_player
+    while True:
+        yield cur
+        cur = next_player(cur)
+        if cur == starting_player:
+            raise StopIteration
+
+
 #### Game setup
 
 def start_game(game):
@@ -326,8 +341,8 @@ def play_tile(game, player, tile):
                           tile=tile)
         elif survivors:
             survivor = hotel_named(game, survivors[0])
-            more_to_do = merge_hotels(game, tile, survivor)
-            if not more_to_do:
+            merge_hotels(game, player, tile, survivor)
+            if not game['action_queue']:
                 advance_turn(game, player)
         else:
             hotel = grows_hotel(game, tile)
@@ -382,17 +397,15 @@ def choose_survivor(game, player, survivor):
         raise GamePlayNotAllowedError('survivor must be one of %s, not %s' % 
                                       (first_action['choices'],
                                        survivor['name']))
-    merge_hotels(game, first_action['tile'], survivor)
+    game['action_queue'].pop(0)
+    merge_hotels(game, player, first_action['tile'], survivor)
 
-def merge_hotels(game, tile, survivor):
-    """Merge all hotels adjacent to the given tile into survivor, paying out 
-    bonuses as appropriate, then queue actions on the game's action queue for 
-    players to handle their shares of disappearing hotels.
+def pay_merge_bonuses(game, hotels):
+    """For each hotel in hotels, compute and pay out the majority and minority 
+    shareholder bonuses.
     """
     nearest_hundred_floor = lambda i: i - i % 100
-    disappearing = [h for h in hotels_adjacent_to_tile(game, tile) 
-                            if h != survivor]
-    for hotel in disappearing:
+    for hotel in hotels:
         shares_held_by = lambda p: p['shares'][hotel['name']]
         shares_held = set(shares_held_by(p) for p in game['players'])
         most_held = max(shares_held)
@@ -421,6 +434,72 @@ def merge_hotels(game, tile, survivor):
             p['cash'] += majority_bonus
         for p in minority_holders:
             p['cash'] += minority_bonus
+
+def merge_hotels(game, merging_player, tile, survivor):
+    """Merge all hotels adjacent to the given tile into survivor, paying out 
+    bonuses as appropriate, then queue actions on the game's action queue for 
+    players to handle their shares of disappearing hotels.
+    """
+    disappearing = [h for h in hotels_adjacent_to_tile(game, tile) 
+                            if h != survivor]
+    pay_merge_bonuses(game, disappearing)
+    for hotel in disappearing:
+        for player in player_order(game, merging_player):
+            if player['shares'][hotel['name']]:
+                append_action(game, 'disburse_shares', player, 
+                              hotel=hotel['name'])
+    game['merge_info'] = {
+        'tile': tile, 
+        'survivor': survivor['name'],
+        'merging_player': merging_player['name'],
+    }
+    if not game['action_queue']:
+        clean_up_merge(game)
+
+def disburse_shares(game, player, disbursement):
+    """Disburse player's shares in the hotel requested earlier according to 
+    disbursement (whose keys can be any subset of {'trade', 'sell'}).
+    
+    Raises GamePlayNotAllowedError if a share disbursement from the given player 
+    was not expected at this time.
+    """
+    ensure_action(game, 'disburse_shares', player)
+    from_hotel = hotel_named(game, game['action_queue'][0]['hotel'])
+    survivor = hotel_named(game, game['merge_info']['survivor'])
+    if 'trade' in disbursement:
+        shares_held = player['shares'][from_hotel['name']]
+        shares_desired = disbursement['trade'] / 2
+        if disbursement['trade'] > shares_held:
+            raise GamePlayNotAllowedError('cannot trade %d shares when %d are '
+                                          'held' % 
+                                          (disbursement['trade'], shares_held))
+        elif shares_desired > bank_shares(game, survivor):
+            raise GamePlayNotAllowedError('not enough shares in the bank')
+        player['shares'][from_hotel['name']] -= disbursement['trade']
+        player['shares'][survivor['name']] += shares_desired
+    if 'sell' in disbursement:
+        player['shares'][from_hotel['name']] -= disbursement['sell']
+        player['cash'] += disbursement['sell'] * share_price(from_hotel)
+    game['action_queue'].pop(0)
+    if not game['action_queue']:
+        clean_up_merge(game)
+
+def clean_up_merge(game):
+    """Put all disappearing hotels' tiles and the merge tile into the surviving 
+    hotel, take the disappearing hotels off of the board, then remove the merge
+    info and advance the turn.
+    """
+    survivor = hotel_named(game, game['merge_info']['survivor'])
+    merge_tile = game['merge_info']['tile']
+    merging_player = player_named(game, game['merge_info']['merging_player'])
+    del game['merge_info']
+    disappearing = [h for h in hotels_adjacent_to_tile(game, merge_tile) 
+                            if h != survivor]
+    for hotel in disappearing:
+        survivor['tiles'].extend(hotel['tiles'])
+        hotel['tiles'] = []
+    survivor['tiles'].append(merge_tile)
+    advance_turn(game, merging_player)
 
 
 #### Buying shares
