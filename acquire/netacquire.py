@@ -79,8 +79,13 @@ class NetAcquire(object):
     
     def lobby_chat_message(self, message):
         """A chat message destined for everyone in the lobby."""
-        cited_message = '%s: %s' % (message['player'], message['chat_message'])
-        self.send_to_all_clients(Directive('LM', cited_message))
+        cited = '%s: %s' % (message['player'], message['chat_message'])
+        self.send_to_all_clients(Directive('LM', cited))
+    
+    def game_chat_message(self, message):
+        """A chat message destined for players of a certain game."""
+        cited = '%s: %s' % (message['player'], message['chat_message'])
+        self.send_to_clients_in_game(message['game'], Directive('GM', cited))
     
     
     #### Game listing, starting, joining, leaving, and ending.
@@ -133,6 +138,8 @@ class NetAcquire(object):
             self.set_client_state(client, 4)
         announcement = '* %s has joined game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
+        announcement = '* %s has joined the game.' % player
+        self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
     
     def LV_directive(self, client, directive):

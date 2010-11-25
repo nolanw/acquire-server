@@ -40,6 +40,14 @@ class Backend(object):
         del message['path']
         self.send_to_frontends('lobby_chat', **message)
     
+    def game_chat_message(self, message):
+        """Someone wants to talk to the game they're in."""
+        game = self.game_for_player(message['player'])
+        if game:
+            del message['path']
+            message['game'] = {'players': game['players']}
+            self.send_to_frontends('game_chat', **message)
+    
     
     #### Listing, starting, joining, leaving, and starting play of games.
     
