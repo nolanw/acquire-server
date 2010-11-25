@@ -210,23 +210,6 @@ class NetAcquire(object):
             self.send_to_client(client, Directive('SS', client_state))
     
     
-    #### Disconnection and logging out.
-    
-    def disconnected(self, client):
-        """A client disconnected, so forget all about them."""
-        fileno = client.fileno()
-        if fileno in self.names:
-            self.send_to_backend('logout', player=self.names[fileno])
-        client_collections = [self.client_queues, self.names, self.clients, 
-                              self.shaking_hands, self.client_states]
-        for collection in client_collections:
-            if fileno in collection:
-                del collection[fileno]
-        self.remove_fileno(self.inputs, fileno)
-        client.close()
-        self.log.debug('client %d has disconnected', fileno)
-    
-    
     #### Helpers
     
     def __init__(self):
@@ -260,6 +243,7 @@ class NetAcquire(object):
         self.clients = {}
         self.client_queues = {}
         self.client_states = {}
+        self.client_racks = {}
         self.names = {}
         self.shaking_hands = {}
         self.announce = Directive("SP", "2", "0", "4", str(server_name))
@@ -429,6 +413,26 @@ class NetAcquire(object):
         self.client_states[client.fileno()] = int(state)
         self.send_to_client(client, Directive('SS', int(state)))
     
+    def set_client_rack(self, client, new_rack):
+        """Updates the client's rack, preserving indices for unchanging tiles.
+        
+        This is done in-place (i.e. a tile at index 4 is always there until 
+        removed) because otherwise NetAcquire won't highlight the tile on the
+        board.
+        """
+        fileno = client.fileno() 
+        if fileno in self.client_racks:
+            old_rack = self.client_racks[fileno]
+            if old_rack:
+                rack = [t if t in new_rack else None for t in old_rack]
+            else:
+                rack = new_rack
+            added = [t for t in new_rack if t not in rack]
+            for tile in added:
+                rack[rack.index(None)] = tile
+            new_rack = rack
+        self.client_racks[fileno] = new_rack
+    
     @classmethod
     def tile_id(cls, tile):
         """Returns the NetAcquire Tile-ID of the given tile.
@@ -456,6 +460,8 @@ class NetAcquire(object):
             if client:
                 self.update_scoreboard_view(client, game)
                 self.update_board(client, game)
+                self.set_client_rack(client, player.get('rack', []))
+                self.update_rack(client, game)
     
     def update_scoreboard_view(self, client, game):
         """Sends a series of Set Value directives to the given client so that 
@@ -507,6 +513,43 @@ class NetAcquire(object):
             for tile in hotel['tiles']:
                 template[0] = self.tile_id(tile)
                 send()
+    
+    def update_rack(self, client, game):
+        """Sends a series of Activate Tile directives to the given client so 
+        that its tile rack represents the one saved by this frontend.
+        """
+        if game['started']:
+            unplayable = gametools.tiles_that_merge_safe_hotels(game)
+            if not gametools.hotels_off_board(game):
+                unplayable.extend(gametools.tiles_that_create_hotels(game))
+        else:
+            unplayable = []
+        for i, tile in enumerate(self.client_racks[client.fileno()]):
+            if tile:
+                if tile in unplayable:
+                    chain_id = 0x606060
+                else:
+                    chain_id = 0xC0C0C0
+                directive = Directive('AT', i + 1, self.tile_id(tile), chain_id)
+            else:
+                directive = Directive('SV', 'frmTileRack', 'cmdTile', i + 1,
+                                      'Visible', 0)
+            self.send_to_client(client, directive)
+    
+    def disconnected(self, client):
+        """A client disconnected, so forget all about them."""
+        fileno = client.fileno()
+        if fileno in self.names:
+            self.send_to_backend('logout', player=self.names[fileno])
+        client_collections = [self.client_queues, self.names, self.clients, 
+                              self.shaking_hands, self.client_states, 
+                              self.client_racks]
+        for collection in client_collections:
+            if fileno in collection:
+                del collection[fileno]
+        self.remove_fileno(self.inputs, fileno)
+        client.close()
+        self.log.debug('client %d has disconnected', fileno)
     
 
 if __name__ == '__main__':
