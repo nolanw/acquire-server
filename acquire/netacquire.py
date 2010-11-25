@@ -129,7 +129,7 @@ class NetAcquire(object):
         player, game = message['player'], message['game']
         client = self.client_named(player)
         if client:
-            client.send(Directive('SS', 4))
+            self.send_to_client(client, Directive('SS', 4))
         announcement = '* %s has joined game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
     

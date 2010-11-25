@@ -65,6 +65,37 @@ class Backend(object):
             self.send_games_list_to_frontends()
             self.log.debug('Game %d started by %s.', game['number'], player)
     
+    def join_game_message(self, message):
+        """Someone wants to join a game."""
+        player, game_number = message['player'], message['game_number']
+        game = self.game_for_player(player)
+        if not game:
+            game = self.game_numbered(game_number)
+            if game:
+                try:
+                    gametools.add_player_named(game, player)
+                    self.send_to_frontends('joined_game', player=player, 
+                                           game=game)
+                    self.send_games_list_to_frontends()
+                except gametools.GameAlreadyStartedError:
+                    error = 'Cannot join started game'
+                    detail = ("Game %d has already started, so you cannot "
+                              "join." % game['number'])
+                    self.send_to_frontends('error', player=player, error=error, 
+                                           detail=detail)
+            else:
+                error = 'No such game'
+                detail = ("There is no game numbered %d. Please select "
+                          "another." % game['number'])
+                self.send_to_frontends('error', player=player, error=error, 
+                                       detail=detail)
+        else:
+            error = 'Already in game'
+            detail = ("You are already in a game and cannot join another until "
+                      "it is done or you have left.")
+            self.send_to_frontends('error', player=player, error=error, 
+                                   detail=detail)
+    
     def leave_game_message(self, message):
         """Someone wants to leave their game."""
         player = message['player']
@@ -178,6 +209,15 @@ class Backend(object):
         """
         for game in self.games_list:
             if player_name in map(lambda p: p['name'], game['players']):
+                return game
+        return None
+    
+    def game_numbered(self, game_number):
+        """Returns the game with the given game number, or None if there is no 
+        such game.
+        """
+        for game in self.games_list:
+            if game['number'] == game_number:
                 return game
         return None
     
