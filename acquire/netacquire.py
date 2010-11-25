@@ -25,7 +25,7 @@ class NetAcquire(object):
         self.inputs.append(client)
         client.send(str(self.announce))
         self.shaking_hands[client.fileno()] = ''
-        self.log.debug("New client from %s", address[0])
+        self.log.debug("New client from %s:%d." % address)
     
     def PL_directive(self, client, directive):
         """The client is continuing the handshake by telling us their name."""
@@ -43,7 +43,7 @@ class NetAcquire(object):
             fileno = client.fileno()
             self.names[fileno] = self.shaking_hands[fileno]
             del self.shaking_hands[fileno]
-            self.send_to_client(client, Directive('SS', 3))
+            self.set_client_state(client, 3)
         announcement = '* %s has entered the lobby.' % message['player']
         self.send_to_all_clients(Directive('LM', announcement))
     
@@ -111,8 +111,8 @@ class NetAcquire(object):
         player, game = message['player'], message['game']
         client = self.client_named(player)
         if client:
-            self.send_to_client(client, Directive('SS', 4))
-            self.send_to_client(client, Directive('SS', 5))
+            self.set_client_state(client, 4)
+            self.set_client_state(client, 5)
         announcement = '* %s has started new game %d.' % (player, 
                                                           game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
@@ -129,7 +129,7 @@ class NetAcquire(object):
         player, game = message['player'], message['game']
         client = self.client_named(player)
         if client:
-            self.send_to_client(client, Directive('SS', 4))
+            self.set_client_state(client, 4)
         announcement = '* %s has joined game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
     
@@ -144,10 +144,10 @@ class NetAcquire(object):
         player, game = message['player'], message['game']
         client = self.client_named(player)
         if client:
-            self.send_to_client(client, Directive('SS', 3))
+            self.set_client_state(client, 3)
         client = self.client_named(gametools.host(game))
         if client:
-            self.send_to_client(client, Directive('SS', 5))
+            self.set_client_state(client, 5)
         announcement = '* %s has left game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
     
@@ -160,18 +160,41 @@ class NetAcquire(object):
         game = message['game']
         announcement = '* Game %d has begun!' % game['number']
         self.send_to_all_clients(Directive('LM', announcement))
+        
+        # Send all of these directives in one chunk so Acquire.app correctly 
+        # parses the directives.
         directives = [Directive('GM', '* The game has begun!')]
         for drawn_tile, player in message['starting_draws'].iteritems():
             name = player['name']
             announcement = '* %s drew starting tile %s' % (name, drawn_tile)
             directives.append(Directive('GM', announcement))
-        directives.append(Directive('SS'))
         self.send_to_clients_in_game(game, ''.join(str(d) for d in directives))
+        self.set_client_state(client, 6)
     
     def game_over_message(self, message):
         """A game ended."""
         announcement = '* Game %d has ended.' % message['game_number']
         self.send_to_all_clients(Directive('LM', announcement))
+    
+    
+    #### Error messages
+
+    def error_message(self, message):
+        """Deliver the error to the addressed client, if that client is of this 
+        frontend.
+        """
+        client = self.client_named(message['player'])
+        if client:
+            announcement = 'E;%s;%s' % (message['error'], message['detail'])
+            self.send_to_client(client, Directive('M', announcement))
+            client_state = self.state_of_client(client)
+            
+            # Send a Set State directive so NetAcquire doesn't wait for a 
+            # response to a failed request that may have been the source of the 
+            # error. (For example, if a player attempts to join a nonexistent 
+            # game and this SS directive isn't sent, they cannot attempt to 
+            # join *any* games.)
+            self.send_to_client(client, Directive('SS', client_state))
     
     
     #### Disconnection and logging out.
@@ -182,7 +205,7 @@ class NetAcquire(object):
         if fileno in self.names:
             self.send_to_backend('logout', player=self.names[fileno])
         client_collections = [self.client_queues, self.names, self.clients, 
-                              self.shaking_hands]
+                              self.shaking_hands, self.client_states]
         for collection in client_collections:
             if fileno in collection:
                 del collection[fileno]
@@ -223,6 +246,7 @@ class NetAcquire(object):
         self.backend_queue = Queue.Queue()
         self.clients = {}
         self.client_queues = {}
+        self.client_states = {}
         self.names = {}
         self.shaking_hands = {}
         self.announce = Directive("SP", "2", "0", "4", str(server_name))
@@ -375,6 +399,22 @@ class NetAcquire(object):
             if name == client_name:
                 return self.clients[fileno]
         return None
+    
+    def state_of_client(self, client):
+        """Returns the most recently set state for the given client (appropriate 
+        to include in a Set State directive), or 3 if no recent state is known.
+        """
+        if client.fileno() in self.client_states:
+            return self.client_states[client.fileno()]
+        else:
+            return 3
+    
+    def set_client_state(self, client, state):
+        """Sends a Set State directive to the client and remembers the state for 
+        later.
+        """
+        self.client_states[client.fileno()] = int(state)
+        self.send_to_client(client, Directive('SS', int(state)))
     
 
 if __name__ == '__main__':

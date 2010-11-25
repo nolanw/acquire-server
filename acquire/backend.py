@@ -30,7 +30,7 @@ class Backend(object):
         """A player has left."""
         player = message['player']
         self.players.discard(player)
-        self.log.debug('Goodbye %s', player)
+        self.log.debug('Goodbye %s.', player)
     
     
     #### Chat.
@@ -55,8 +55,7 @@ class Backend(object):
             error = 'Already in game'
             detail = ('Please leave your current game before '
                       'starting a new one.')
-            self.send_to_frontends('error', player=player, error=error, 
-                                   detail=detail)
+            self.send_error(player, error, detail)
         else:
             game = gametools.new_game(self.next_game_number())
             gametools.add_player_named(game, player)
@@ -77,24 +76,22 @@ class Backend(object):
                     self.send_to_frontends('joined_game', player=player, 
                                            game=game)
                     self.send_games_list_to_frontends()
+                    self.log.debug('%s joined game %d.', player, game['number'])
                 except gametools.GameAlreadyStartedError:
                     error = 'Cannot join started game'
                     detail = ("Game %d has already started, so you cannot "
                               "join." % game['number'])
-                    self.send_to_frontends('error', player=player, error=error, 
-                                           detail=detail)
+                    self.send_error(player, error, detail)
             else:
                 error = 'No such game'
-                detail = ("There is no game numbered %d. Please select "
-                          "another." % game['number'])
-                self.send_to_frontends('error', player=player, error=error, 
-                                       detail=detail)
+                detail = ("There is no game numbered %r. Please select "
+                          "another." % message['game_number'])
+                self.send_error(player, error, detail)
         else:
             error = 'Already in game'
             detail = ("You are already in a game and cannot join another until "
                       "it is done or you have left.")
-            self.send_to_frontends('error', player=player, error=error, 
-                                   detail=detail)
+            self.send_error(player, error, detail)
     
     def leave_game_message(self, message):
         """Someone wants to leave their game."""
@@ -108,8 +105,7 @@ class Backend(object):
             except gametools.GameAlreadyStartedError:
                 error = 'Game has started'
                 detail = ('You cannot leave a game that has already started.')
-                self.send_to_frontends('error', player=player, error=error, 
-                                       detail=detail)
+                self.send_error(player, error, detail)
             if not game['players']:
                 self.games_list.remove(game)
                 self.send_to_frontends('game_over', game_number=game['number'])
@@ -190,6 +186,15 @@ class Backend(object):
         """
         message.update(dict(path=path))
         self.pub_queue.put(message)
+    
+    def send_error(self, player, error, detail):
+        """Send an error message to the given player. error should be a 
+        short description (suitable for the title of a dialog box), while 
+        detail should be a longer description (suitable for the contents of a 
+        dialog box).
+        """
+        self.send_to_frontends('error', player=player, error=error, 
+                               detail=detail)
     
     def next_game_number(self):
         """Returns a unique game number."""
