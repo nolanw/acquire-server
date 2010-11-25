@@ -21,9 +21,12 @@ class GamePlayNotAllowedError(GameError):
 
 #### Game creation
 
-def new_game():
+def new_game(number=None):
     """Factory for new games. Sets up the basic attributes."""
-    return {'players': [], 'started': False, 'ended': False}
+    game = {'players': [], 'started': False, 'ended': False}
+    if number is not None:
+        game['number'] = number
+    return game
 
 
 #### Players
@@ -58,6 +61,14 @@ def remove_player_named(game, player_name):
     if game['started']:
         raise GameAlreadyStartedError()
     game['players'].remove(player_named(game, player_name))
+
+def host(game):
+    """Returns the host player of the given game, or None if no players are in
+    the given game."""
+    if game['players']:
+        return game['players'][0]
+    else:
+        return None
 
 def active_player(game):
     """Returns the player who must perform the next action."""

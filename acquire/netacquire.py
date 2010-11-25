@@ -7,6 +7,7 @@ import socket
 import sys
 import zmq
 
+from acquire import gametools
 from acquire.directive import Directive
 
 class NetAcquire(object):
@@ -129,6 +130,15 @@ class NetAcquire(object):
         """Send a directive to a client."""
         self.client_queues[client.fileno()].put(str(directive))
     
+    def send_to_clients_in_game(self, game, directive):
+        """Send the directive to all clients of this frontend who are in the 
+        given game.
+        """
+        for player in game['players']:
+            client = self.client_named(player['name'])
+            if client:
+                self.send_to_client(client, directive)
+    
     def send_to_all_clients(self, directive):
         """Send a directive to all connected clients."""
         for client in self.clients.itervalues():
@@ -221,7 +231,7 @@ class NetAcquire(object):
         self.send_to_all_clients(Directive('LM', cited_message))
     
     
-    #### Game listing, starting, joining, and leaving.
+    #### Game listing, starting, joining, leaving, and ending.
     
     def LG_directive(self, client, directive):
         """The client would like a list of active games."""
@@ -237,6 +247,79 @@ class NetAcquire(object):
     def games_list_message(self, message):
         """The games list changed, or someone requested an updated list."""
         self.games_list = message['games_list']
+    
+    def SG_directive(self, client, directive):
+        """The client would like to start a new game."""
+        self.send_to_backend('start_game', player=self.name_of_client(client))
+    
+    def started_game_message(self, message):
+        """Someone started a new game. If it's a client of this frontend, get 
+        them ready.
+        """
+        player, game = message['player'], message['game']
+        client = self.client_named(player)
+        if client:
+            self.send_to_client(client, Directive('SS', 4))
+            self.send_to_client(client, Directive('SS', 5))
+        announcement = '* %s has started new game %d.' % (player, 
+                                                          game['number'])
+        self.send_to_all_clients(Directive('LM', announcement))
+    
+    def JG_directive(self, client, directive):
+        """The client would like to join an active game."""
+        self.send_to_backend('join_game', player=self.name_of_client(client), 
+                             game_number=int(directive[0]))
+    
+    def joined_game_message(self, message):
+        """Someone joined a game. If it's a client of this frontend, get them 
+        into the game.
+        """
+        player, game = message['player'], message['game']
+        client = self.client_named(player)
+        if client:
+            client.send(Directive('SS', 4))
+        announcement = '* %s has joined game %d.' % (player, game['number'])
+        self.send_to_all_clients(Directive('LM', announcement))
+    
+    def LV_directive(self, client, directive):
+        """The client would like to leave an active game."""
+        self.send_to_backend('leave_game', player=self.name_of_client(client))
+    
+    def left_game_message(self, message):
+        """Someone left a game. Let our clients know who left and who is the 
+        new host, if either or both are clients of this frontend.
+        """
+        player, game = message['player'], message['game']
+        client = self.client_named(player)
+        if client:
+            self.send_to_client(client, Directive('SS', 3))
+        client = self.client_named(gametools.host(game))
+        if client:
+            self.send_to_client(client, Directive('SS', 5))
+        announcement = '* %s has left game %d.' % (player, game['number'])
+        self.send_to_all_clients(Directive('LM', announcement))
+    
+    def PG_directive(self, client, directive):
+        """The client would like to start game play in an active game."""
+        self.send_to_backend('play_game', player=self.name_of_client(client))
+    
+    def play_game_message(self, message):
+        """Someone started a game. Tell everyone who needs to know."""
+        game = message['game']
+        announcement = '* Game %d has begun!' % game['number']
+        self.send_to_all_clients(Directive('LM', announcement))
+        directives = [Directive('GM', '* The game has begun!')]
+        for drawn_tile, player in message['starting_draws'].iteritems():
+            name = player['name']
+            announcement = '* %s drew starting tile %s' % (name, drawn_tile)
+            directives.append(Directive('GM', announcement))
+        directives.append(Directive('SS'))
+        self.send_to_clients_in_game(game, ''.join(str(d) for d in directives))
+    
+    def game_over_message(self, message):
+        """A game ended."""
+        announcement = '* Game %d has ended.' % message['game_number']
+        self.send_to_all_clients(Directive('LM', announcement))
     
     
     #### Disconnection and logging out.
@@ -284,6 +367,15 @@ class NetAcquire(object):
         for fileno, name in self.shaking_hands.iteritems():
             if name == client_name:
                 return self.clients[fileno]
+    
+    def client_named(self, client_name):
+        """Returns the client who calls themself the given name, or None if 
+        there is no such client.
+        """
+        for fileno, name in self.names.iteritems():
+            if name == client_name:
+                return self.clients[fileno]
+        return None
     
 
 if __name__ == '__main__':
