@@ -116,6 +116,7 @@ class NetAcquire(object):
         announcement = '* %s has started new game %d.' % (player, 
                                                           game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
+        self.update_game_views(game)
     
     def JG_directive(self, client, directive):
         """The client would like to join an active game."""
@@ -132,6 +133,7 @@ class NetAcquire(object):
             self.set_client_state(client, 4)
         announcement = '* %s has joined game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
+        self.update_game_views(game)
     
     def LV_directive(self, client, directive):
         """The client would like to leave an active game."""
@@ -150,6 +152,7 @@ class NetAcquire(object):
             self.set_client_state(client, 5)
         announcement = '* %s has left game %d.' % (player, game['number'])
         self.send_to_all_clients(Directive('LM', announcement))
+        self.update_game_views(game)
     
     def PG_directive(self, client, directive):
         """The client would like to start game play in an active game."""
@@ -170,6 +173,7 @@ class NetAcquire(object):
             directives.append(Directive('GM', announcement))
         self.send_to_clients_in_game(game, ''.join(str(d) for d in directives))
         self.set_client_state(client, 6)
+        self.update_game_views(game)
     
     def game_over_message(self, message):
         """A game ended."""
@@ -415,6 +419,51 @@ class NetAcquire(object):
         """
         self.client_states[client.fileno()] = int(state)
         self.send_to_client(client, Directive('SS', int(state)))
+    
+    def update_game_views(self, game):
+        """Sends a series of Set Value and other directives to all clients of 
+        this frontend who are in game so that their game views represent the 
+        given game.
+        """
+        for player in game['players']:
+            client = self.client_named(player['name'])
+            if client:
+                self.update_scoreboard_view(client, game)
+    
+    def update_scoreboard_view(self, client, game):
+        """Sends a series of Set Value directives to the given client so that 
+        its scoreboard represents the given game's.
+        """
+        template = Directive('SV', 'frmScoreSheet', 'lblData', 0, 'Caption', '')
+        send = lambda: self.send_to_client(client, template)
+        for i, player in enumerate(game['players']):
+            template[2] = i + 1
+            template[4] = player['name']
+            send()
+            if game['started']:
+                template[2] = i + 82
+                template[4] = player['cash']
+                send()
+                for j, hotel_name in enumerate(gametools.hotel_names):
+                    template[2] = (33, 40, 47, 54, 61, 68, 75)[j] + i
+                    template[4] = player['shares'][hotel_name] or ' '
+                    send()
+        for i in xrange(len(game['players']), 7):
+            template[2] = i + 1
+            template[4] = ' '
+            send()
+        if game['started']:
+            for i, hotel_name in enumerate(gametools.hotel_names):
+                hotel = gametools.hotel_named(game, hotel_name)
+                template[2] = 9 + i
+                template[4] = gametools.bank_shares(game, hotel)
+                send()
+                template[2] = 17 + i
+                template[4] = len(hotel['tiles']) or '-'
+                send()
+                template[2] = 25 + i
+                template[4] = gametools.share_price(hotel) / 100 or '-'
+                send()
     
 
 if __name__ == '__main__':
