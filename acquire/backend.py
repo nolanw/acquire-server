@@ -119,6 +119,17 @@ class Backend(object):
                 self.send_to_frontends('game_over', game_number=game['number'])
             self.send_games_list_to_frontends()
     
+    def play_game_message(self, message):
+        """Someone wants to start the game. If it's not the host of the game, 
+        let's ignore them.
+        """
+        player = message['player']
+        game = self.game_for_player(player)
+        if gametools.host(game)['name'] == player:
+            start_tiles = gametools.start_game(game)
+            self.send_to_frontends('play_game', game=game, 
+                                   start_tiles=start_tiles)
+    
     
     #### Helpers
     

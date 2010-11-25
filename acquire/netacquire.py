@@ -174,12 +174,14 @@ class NetAcquire(object):
         # Send all of these directives in one chunk so Acquire.app correctly 
         # parses the directives.
         directives = [Directive('GM', '* The game has begun!')]
-        for drawn_tile, player in message['starting_draws'].iteritems():
+        for start_tile, player in message['start_tiles'].iteritems():
             name = player['name']
-            announcement = '* %s drew starting tile %s' % (name, drawn_tile)
+            client = self.client_named(name)
+            if client:
+                self.set_client_state(client, 6)
+            announcement = '* %s drew start tile %s' % (name, start_tile)
             directives.append(Directive('GM', announcement))
         self.send_to_clients_in_game(game, ''.join(str(d) for d in directives))
-        self.set_client_state(client, 6)
         self.update_game_views(game)
     
     def game_over_message(self, message):
@@ -427,6 +429,23 @@ class NetAcquire(object):
         self.client_states[client.fileno()] = int(state)
         self.send_to_client(client, Directive('SS', int(state)))
     
+    @classmethod
+    def tile_id(cls, tile):
+        """Returns the NetAcquire Tile-ID of the given tile.
+        
+        Tile-IDs start at 1 (tile 1A) and increase down the column (i.e. tile 
+        1I has a Tile-ID of 9), then to the top of the next column (i.e. tile 
+        2A has a Tile-ID of 10), and so on.
+        """
+        return (int(tile[:-1]) - 1) * 9 + ord(tile[-1]) - ord('A') + 1
+    
+    @classmethod
+    def hotel_id(cls, hotel_name):
+        """Returns the NetAcquire Hotel-ID of the hotel with the given name."""
+        ids = (0x0000FF, 0x00FFFF, 0xFF0000, 0x00FF00, 0x004080, 0xFFFF00, 
+               0xFF00FF)
+        return dict(zip(gametools.hotel_names, ids))[hotel_name]
+    
     def update_game_views(self, game):
         """Sends a series of Set Value and other directives to all clients of 
         this frontend who are in game so that their game views represent the 
@@ -436,6 +455,7 @@ class NetAcquire(object):
             client = self.client_named(player['name'])
             if client:
                 self.update_scoreboard_view(client, game)
+                self.update_board(client, game)
     
     def update_scoreboard_view(self, client, game):
         """Sends a series of Set Value directives to the given client so that 
@@ -470,6 +490,22 @@ class NetAcquire(object):
                 send()
                 template[2] = 25 + i
                 template[4] = gametools.share_price(hotel) / 100 or '-'
+                send()
+    
+    def update_board(self, client, game):
+        """Sends a series of Set Board directives to the given client so that 
+        its board represents the given game's.
+        """
+        template = Directive('SB', 0, 0)
+        send = lambda: self.send_to_client(client, template)
+        for tile in game.get('lonely_tiles', []):
+            template[0] = self.tile_id(tile)
+            template[1] = 0
+            send()
+        for hotel in game.get('hotels', []):
+            template[1] = self.hotel_id(hotel['name'])
+            for tile in hotel['tiles']:
+                template[0] = self.tile_id(tile)
                 send()
     
 
