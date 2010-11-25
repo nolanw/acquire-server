@@ -31,7 +31,7 @@ class Backend(object):
         # Queue and collection setup.
         self.pub_queue = Queue.Queue()
         self.players = set()
-        self.games = {}
+        self.games_list = []
         
         # Listen forever until end of file (CTRL-D on *nix) seen on stdin.
         while True:
@@ -111,6 +111,12 @@ class Backend(object):
         """Someone wants to talk to the lobby."""
         del message['path']
         self.send_to_frontends('lobby_chat', **message)
+    
+    
+    #### Games list.
+    def games_list_message(self, message):
+        """Someone wants a list of all active games."""
+        self.send_to_frontends('games_list', games_list=self.games_list)
     
 
 if __name__ == '__main__':

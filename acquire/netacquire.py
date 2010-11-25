@@ -48,6 +48,10 @@ class NetAcquire(object):
         self.shaking_hands = {}
         self.announce = Directive("SP", "2", "0", "4", str(server_name))
         
+        # Request initial game list.
+        self.games_list = []
+        self.send_to_backend('games_list')
+        
         # Listen forever until end of file (CTRL-D on *nix) seen on stdin.
         while True:
             self._runloop()
@@ -215,6 +219,24 @@ class NetAcquire(object):
         """A chat message destined for everyone in the lobby."""
         cited_message = '%s: %s' % (message['player'], message['chat_message'])
         self.send_to_all_clients(Directive('LM', cited_message))
+    
+    
+    #### Game listing, starting, joining, and leaving.
+    
+    def LG_directive(self, client, directive):
+        """The client would like a list of active games."""
+        messages = ['# Active games: %d ...' % len(self.games_list)]
+        for game in self.games_list:
+            messages.append('# ->   Game #%d-> %d players, no spectators, '
+                            'In Progress...' % (game['number'], 
+                                                len(game['players'])))
+        messages.append('# End of game list.')
+        self.send_to_client(client, ''.join(str(Directive('LM', m)) 
+                                    for m in messages))
+    
+    def games_list_message(self, message):
+        """The games list changed, or someone requested an updated list."""
+        self.games_list = message['games_list']
     
     
     #### Disconnection and logging out.
