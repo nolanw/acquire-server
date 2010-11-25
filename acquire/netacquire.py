@@ -462,6 +462,8 @@ class NetAcquire(object):
                 self.update_board(client, game)
                 self.set_client_rack(client, player.get('rack', []))
                 self.update_rack(client, game)
+        if game['started'] and not game['ended']:
+            self.update_action_queue(game)
     
     def update_scoreboard_view(self, client, game):
         """Sends a series of Set Value directives to the given client so that 
@@ -535,6 +537,43 @@ class NetAcquire(object):
                 directive = Directive('SV', 'frmTileRack', 'cmdTile', i + 1,
                                       'Visible', 0)
             self.send_to_client(client, directive)
+    
+    def update_action_queue(self, game):
+        """Routes to a dedicated method for handling the first action in the 
+        given game's action queue.
+        """
+        first_action = game['action_queue'][0]['action']
+        handler_name = first_action + '_action'
+        if hasattr(self, handler_name):
+            try:
+                getattr(self, handler_name)(game)
+            except Exception:
+                self.log.exception('action_queue handler bailed')
+        else:
+            self.log.debug('unimplemented action %s', first_action)
+    
+    def play_tile_action(self, game):
+        """It's a new player's turn, and they need to play a tile."""
+        active_player_name = game['action_queue'][0]['player']
+        # Active player gets a nice salmon background.
+        template = Directive('SV', 'frmScoreSheet', 'lblData', 0, 
+                             'BackColor', 0)
+        directives = []
+        for i, player in enumerate(game['players']):
+            template[2] = i + 1
+            if player['name'] == active_player_name:
+                template[4] = 0xC0C0FF
+            else:
+                template[4] = 0xFFFFFF
+            directives.append(str(template))
+        directives.append(str(Directive('GM', "*** %s's turn." % 
+                                              active_player_name)))
+        directives.append(str(Directive('GM', "*Waiting for %s to play tile" % 
+                                              active_player_name)))
+        self.send_to_clients_in_game(game, ''.join(directives))
+        client = self.client_named(active_player_name)
+        if client:
+            self.send_to_client(client, Directive('GT'))
     
     def disconnected(self, client):
         """A client disconnected, so forget all about them."""
