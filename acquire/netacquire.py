@@ -71,7 +71,7 @@ class NetAcquire(object):
         elif target == 'Game Room':
             path = 'game_chat'
         else:
-            log.debug('unknown message target %s', target)
+            self.log.debug('unknown message target %s', target)
             return
         chat_message = Directive.unescape_param(directive[1])
         self.send_to_backend(path, chat_message=chat_message, 
@@ -192,20 +192,73 @@ class NetAcquire(object):
     
     #### Playing games.
     
+    def play_tile_action(self, game):
+        """It's a new player's turn, and they need to play a tile."""
+        active_player_name = game['action_queue'][0]['player']
+        # Active player gets a nice salmon background.
+        template = Directive('SV', 'frmScoreSheet', 'lblData', 0, 
+                             'BackColor', 0)
+        directives = []
+        for i, player in enumerate(game['players']):
+            template[2] = i + 1
+            if player['name'] == active_player_name:
+                template[4] = 0xC0C0FF
+            else:
+                template[4] = 0xFFFFFF
+            directives.append(str(template))
+        directives.append(str(Directive('GM', "*** %s's turn." % 
+                                              active_player_name)))
+        directives.append(str(Directive('GM', "*Waiting for %s to play tile" % 
+                                              active_player_name)))
+        self.send_to_clients_in_game(game, ''.join(directives))
+        client = self.client_named(active_player_name)
+        if client:
+            self.send_to_client(client, Directive('GT'))
+    
     def PT_directive(self, client, directive):
         """A client wants to play a tile."""
         try:
             i = int(directive[0]) - 1
             tile = self.client_racks[client.fileno()][i]
         except IndexError, ValueError:
-            log.debug('failed Play Tile for client %d: %s', client.fileno(), 
-                      directive)
+            self.log.debug('failed Play Tile for client %d: %s', 
+                           client.fileno(), directive)
         self.send_to_backend('play_tile', tile=tile, 
                              player=self.name_of_client(client))
     
     def tile_played_message(self, message):
         """Someone played a tile."""
         announcement = '* %(player)s played tile %(tile)s.' % message
+        game = message['game']
+        self.send_to_clients_in_game(game, Directive('GM', announcement))
+        self.update_game_views(game)
+    
+    def create_hotel_action(self, game):
+        """Someone played a tile that created a new hotel, and they need to 
+        pick one.
+        """
+        client = self.client_named(game['action_queue'][0]['player'])
+        if client:
+            directive = Directive('GC', 4)
+            for hotel in gametools.hotels_off_board(game):
+                directive.params.append(self.hotel_index(hotel['name']))
+            self.send_to_client(client, directive)
+    
+    def CS_directive(self, client, directive):
+        """A client chose a hotel for some reason."""
+        try:
+            hotel_name = self.hotel_for_chain_id(int(directive[0]))
+            path = {4: 'create_hotel', 6: 'choose_survivor'}[int(directive[1])]
+        except KeyError, ValueError:
+            self.log.debug('Chain Selected directive failure for client %d: %s', 
+                           client.fileno(), directive)
+            return
+        player_name = self.name_of_client(client)
+        self.send_to_backend(path, hotel=hotel_name, player=player_name)
+    
+    def hotel_created_message(self, message):
+        """Someone created a new hotel."""
+        announcement = '* %(player)s formed %(hotel)s.' % message
         game = message['game']
         self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
@@ -465,11 +518,28 @@ class NetAcquire(object):
         return (int(tile[:-1]) - 1) * 9 + ord(tile[-1]) - ord('A') + 1
     
     @classmethod
+    def chain_ids(cls):
+        """Return the Chain-IDs for the hotels in gametools.hotel_name order."""
+        return (0x0000FF, 0x00FFFF, 0xFF0000, 0x00FF00, 0x004080, 0xFFFF00, 
+                0xFF00FF)
+    
+    @classmethod
     def hotel_id(cls, hotel_name):
         """Returns the NetAcquire Hotel-ID of the hotel with the given name."""
-        ids = (0x0000FF, 0x00FFFF, 0xFF0000, 0x00FF00, 0x004080, 0xFFFF00, 
-               0xFF00FF)
-        return dict(zip(gametools.hotel_names, ids))[hotel_name]
+        return dict(zip(gametools.hotel_names, cls.chain_ids()))[hotel_name]
+    
+    @classmethod
+    def hotel_index(cls, hotel_name):
+        """Returns the NetAcquire Chain-Index of the hotel with the given name.
+        """
+        index_for_name = dict((h, i + 1) 
+                              for i, h in enumerate(gametools.hotel_names))
+        return index_for_name[hotel_name]
+    
+    @classmethod
+    def hotel_for_chain_id(cls, chain_id):
+        """Returns the name of the hotel with the given Chain-ID."""
+        return dict(zip(cls.chain_ids(), gametools.hotel_names))[chain_id]
     
     def update_game_views(self, game):
         """Sends a series of Set Value and other directives to all clients of 
@@ -572,29 +642,6 @@ class NetAcquire(object):
                 self.log.exception('action_queue handler bailed')
         else:
             self.log.debug('unimplemented action %s', first_action)
-    
-    def play_tile_action(self, game):
-        """It's a new player's turn, and they need to play a tile."""
-        active_player_name = game['action_queue'][0]['player']
-        # Active player gets a nice salmon background.
-        template = Directive('SV', 'frmScoreSheet', 'lblData', 0, 
-                             'BackColor', 0)
-        directives = []
-        for i, player in enumerate(game['players']):
-            template[2] = i + 1
-            if player['name'] == active_player_name:
-                template[4] = 0xC0C0FF
-            else:
-                template[4] = 0xFFFFFF
-            directives.append(str(template))
-        directives.append(str(Directive('GM', "*** %s's turn." % 
-                                              active_player_name)))
-        directives.append(str(Directive('GM', "*Waiting for %s to play tile" % 
-                                              active_player_name)))
-        self.send_to_clients_in_game(game, ''.join(directives))
-        client = self.client_named(active_player_name)
-        if client:
-            self.send_to_client(client, Directive('GT'))
     
     def disconnected(self, client):
         """A client disconnected, so forget all about them."""

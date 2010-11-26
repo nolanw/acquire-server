@@ -125,8 +125,12 @@ class Backend(object):
         """
         player = message['player']
         game = self.game_for_player(player)
-        if gametools.host(game)['name'] == player:
-            start_tiles = gametools.start_game(game)
+        if game and gametools.host(game)['name'] == player:
+            try:
+                start_tiles = gametools.start_game(game)
+            except gametools.GamePlayNotAllowedError, e:
+                self.send_error(player, 'Cannot start game play', e)
+                return
             self.send_to_frontends('play_game', game=game, 
                                    start_tiles=start_tiles)
     
@@ -137,12 +141,31 @@ class Backend(object):
         """Someone played a tile."""
         player_name = message['player']
         game = self.game_for_player(player_name)
+        if not game:
+            return
         try:
             player = gametools.player_named(game, player_name)
             gametools.play_tile(game, player, message['tile'])
         except gametools.GamePlayNotAllowedError, e:
             self.send_error(player, 'Cannot play tile', e)
+            return
         self.send_to_frontends('tile_played', game=game, tile=message['tile'], 
+                               player=player_name)
+    
+    def create_hotel_message(self, message):
+        """Someone created a new hotel."""
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        if not game:
+            return
+        try:
+            player = gametools.player_named(game, player_name)
+            hotel = gametools.hotel_named(game, message['hotel'])
+            gametools.create_hotel(game, player, hotel)
+        except gametools.GamePlayNotAllowedError, e:
+            self.send_error(player, 'Cannot create hotel', e)
+            return
+        self.send_to_frontends('hotel_created', game=game, hotel=hotel['name'], 
                                player=player_name)
     
     
