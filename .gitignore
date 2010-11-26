@@ -1,3 +1,25 @@
+# Can generate NetAcquire protocol pdf so ignore it
+docs/netacquire_protocol.pdf
+
+# From github.com/github/gitignore
+
+*.aux
+*.bbl
+*.blg
+*.glg
+*.glo
+*.gls
+*.idx
+*.ilg
+*.ind
+*.ist
+*.log
+*.out
+*.toc
+*.fdb_latexmk
+*.pdfsync
+*.synctex.gz
+
 *.py[co]
 
 # Packages
