@@ -1,0 +1,749 @@
+\documentclass{article}
+
+\usepackage[pdfborder={0 0 0}]{hyperref}
+
+\title{NetAcquire Protocol Reference}
+\author{}
+\date{}
+
+% Not a bad idea to use discretionary hyphens (\-) in wiredata.
+\providecommand{\wiredata}[1]{\texttt{{#1}}}
+
+\begin{document}
+
+\maketitle
+
+This document provides detailed specifications of the NetAcquire program's communication protocol. This information can be used to write alternate Acquire playing programs that are compatible with NetAcquire. This includes both end-user programs and bots that are written to automatically play the game.
+
+\tableofcontents
+
+\section{About this document} % (fold)
+\label{sec:about_this_document}
+
+This document was originally compiled by Kensit (lornic at telus dot net). Any inquiries about the protocol structure or general contents of this document should go to him. In the process of making a compatible client, this document was updated, prettied and fleshed out by Nolan Waite (nolan at nolanw dot ca). Any inquiries about the look of the document--typos, formatting issues and so on--should go to him.
+
+Various editions of the board game Acquire have labeled hotel chains with various names. All known names are listed throughout this document. Names treated similarly should be considered identical by various clients (e.g. Luxor and Sackson are always the same chain).
+
+% section about_this_document (end)
+
+\section{Communication protocol} % (fold)
+\label{sec:communication_protocol}
+
+This section defines how NetAcquire communicates and provides information on writing alternate programs that may use that protocol.
+
+All communication between NetAcquire clients and hosts is handled via strings of data containing sets of \emph{Directives}. A directive is a single activity for NetAcquire to process. All strings are ASCII-encoded. The last character of a string of data is always a colon.
+
+Directives conform to a \hyperref[sub:general_format]{General Format} and are broken into \hyperref[sub:host_processed_directives]{Host-Processed Directives} and \hyperref[sub:client_processed_directives]{Client-Processed Directives}. Common Parameters define those parameters that have a single definition common to all uses.
+
+Multiple directives can be sent within single blocks of data (e.g. \wiredata{SS;4;:SB;99,0;:}). They will be separated by the string \wiredata{;:}.
+
+\subsection{General format} % (fold)
+\label{sub:general_format}
+
+All directives are formatted:
+\begin{verbatim}
+  Directive-Code;Parameter-String;:
+\end{verbatim}
+
+Where:
+
+Directive-Code is a 1 or 2 character identifier of the type of directive.
+Parameter-String is a string of comma-separated values used by the directive. A parameter can be enclosed in double quotation marks; if so, any character is allowed within the quotation marks (double quotation marks in the input string are escaped by doubling up). (e.g. \wiredata{LM;``Any way you want it;:;:;:````Any way at all'''', he said.'';:}) If a parameter is not so enclosed, the characters double quotation mark ("), colon (:) and semicolon (;) are not allowed.
+Each directive specification notes the directive's purpose, format and notes on its values or use.
+
+% subsection general_format (end)
+
+\subsection{Connection handshake} % (fold)
+\label{sub:connection_handshake}
+
+To connect to a NetAcquire server, the host should send a \hyperref[ssub:sp_start_player]{SP - Start Player} directive to the client immediately upon accepting an incoming connection. The client should respond with a \hyperref[ssub:pl_add_player]{PL - Add Player} directive to the server. The server should then send a \hyperref[ssub:ss_set_state]{SS - Set State} directive with the \hyperref[ssub:client_state_id]{Client-State-ID} of 3. The server can send some lobby messages indicating the current status of the server: number of users, number of games, etc.
+
+% subsection connection_handshake (end)
+
+\subsection{Common parameters} % (fold)
+\label{sub:common_parameters}
+
+\subsubsection{Chain-ID} % (fold)
+\label{ssub:chain_id}
+
+Numeric code used to identify a hotel chain. The value used is the hexadecimal RGB specification of a hotel chain's color converted to decimal.
+
+\begin{tabular}{l|l|l|l}
+  Chain	                 & Color      & RGB hex code	& Base 10 code  \\
+  \hline
+  None (orphaned)	       & light grey & C0C0C0        &	0 or 12632256 \\
+  Discarded (unplayable) & dark grey  & 606060        &	6316128       \\
+  \hline
+  Luxor/Sackson          & red        & 0000FF        & 255           \\
+  Tower/Zeta             & yellow     & 00FFFF        & 65535         \\
+  American/America       & blue       & FF0000        & 16711680      \\
+  Festival/Fusion        & green      & 00FF00        & 65280         \\
+  Worldwide/Hydra        & brown      & 004080        & 16512         \\
+  Continental/Quantum    & cyan       & FFFF00        & 16776960      \\
+  Imperial/Phoenix       & pink       & FF00FF        & 16711935
+\end{tabular}
+
+% subsubsection chain_id (end)
+
+\subsubsection{Client-State-ID} % (fold)
+\label{ssub:client_state_id}
+
+Numeric code used to announce to a client what state they are now entering.
+
+\begin{tabular}{r|l}
+  Numeric code & State                     \\
+  \hline
+             3 & Connected to server       \\
+             4 & In game awaiting players  \\
+             5 & Same as 4 + are host      \\
+             6 & Game has started
+\end{tabular}
+
+% subsubsection client_state_id (end)
+
+\subsubsection{End-Game-Flag} % (fold)
+\label{ssub:end_game_flag}
+
+0 if game should not end; 1 if game should end. (See \hyperref[ssub:p_purchase]{P - Purchase} directive.)
+
+% subsubsection end_game_flag (end)
+
+\subsubsection{Game-Can-End-Flag} % (fold)
+\label{ssub:game_can_end_flag}
+
+0 if the game cannot end, -1 if the game can end.
+
+This is only used in the \hyperref[ssub:gp_get_purchase]{GP - Get Purchase} directive.
+
+% subsubsection game_can_end_flag (end)
+
+\subsubsection{Game-Status-ID} % (fold)
+\label{ssub:game_status_id}
+
+Numeric code used to identify the current state of a game.
+
+\begin{tabular}{r|l}
+  Numeric code & State                                \\
+  \hline
+             0 & Awaiting Player Action               \\
+             1 & Awaiting Players (to join new game)  \\
+             2 & Next Turn                            \\
+             3 & Play Tile                            \\
+             4 & Form Chain                           \\
+             5 & Choose Merger Survivor               \\
+             6 & Merger Bonuses                       \\
+             7 & Choose Merge Chain                   \\
+             8 & Get Merger Disposition               \\
+             9 & Merger Disposition                   \\
+            10 & Merger End                           \\
+            11 & Purchase                             \\
+            12 & Draw Tile (for player)               \\
+            13 & Start Round                          \\
+            99 & End Of Game
+\end{tabular}
+
+% subsubsection game_status_id (end)
+
+\subsubsection{Message-Text} % (fold)
+\label{ssub:message_text}
+
+ASCII text string of a user-typed message, enclosed in double quotes. Any double quotes within the message must be escaped by doubling up.
+
+% subsubsection message_text (end)
+
+\subsubsection{Rack-Tile} % (fold)
+\label{ssub:rack_tile}
+
+Index number identifying the entry on a player's table of held tiles, from 1-6.
+
+% subsubsection rack_tile (end)
+
+\subsubsection{Tile-ID} % (fold)
+\label{ssub:tile_id}
+
+Integer value of a tile on the board.
+
+\begin{tabular}{c|c}
+  Tile range & Integer value              \\
+  \hline
+   1A $\ldots$  1I &   1 $\ldots$   9     \\
+   2A $\ldots$  2I &  10 $\ldots$  18     \\
+   3A $\ldots$  3I &  19 $\ldots$  27     \\
+   4A $\ldots$  4I &  28 $\ldots$  36     \\
+   5A $\ldots$  5I &  37 $\ldots$  45     \\
+   6A $\ldots$  6I &  46 $\ldots$  54     \\
+   7A $\ldots$  7I &  55 $\ldots$  63     \\
+   8A $\ldots$  8I &  64 $\ldots$  72     \\
+   9A $\ldots$  9I &  73 $\ldots$  81     \\
+  10A $\ldots$ 10I &  82 $\ldots$  90     \\
+  11A $\ldots$ 11I &  91 $\ldots$  99     \\
+  12A $\ldots$ 11I & 100 $\ldots$ 108
+\end{tabular}
+
+% subsubsection tile_id (end)
+
+\subsubsection{Tile-State} % (fold)
+\label{ssub:tile_state}
+
+Integer value representing current state of the tile. Is 0 if tile is not in hotel, 12648384 if player can make a hotel with the tile, and otherwise takes on a \hyperref[ssub:chain_id]{Chain-ID} to indicate the hotel it is part of.
+
+% subsubsection tile_state (end)
+
+\subsubsection{Version-ID} % (fold)
+\label{ssub:version_id}
+
+Series of three parameters related to the version number. For example, ``version 2.0.3'' becomes the three parameters ``2'', ``0'', ``3''.
+
+% subsubsection version_id (end)
+
+% subsection common_parameters (end)
+
+\subsection{Host-processed directives} % (fold)
+\label{sub:host_processed_directives}
+
+Directives sent from a client to a host, to be processed by the host.
+
+\subsubsection{BM - Broadcast Message} % (fold)
+\label{ssub:bm_broadcast_message}
+
+\begin{description}
+  \item[Purpose] User-typed message to be sent to all relevant clients.
+  \item[Format] Message-Directive, Message-Text
+  \begin{description}
+    \item[Message-Directive] The directive code for the client-processed message directive to be used. Is either string literal ``Game Room'' or ``Lobby''.
+    \item[Message-Text] see \hyperref[ssub:message_text]{Message-Text}.
+  \end{description}
+  \item[Example] \wiredata{BM;Lobby,``Send this message to everyone in the lobby!'';:}
+  \item[Notes] The host builds a new directive with Message-Directive and Message-Text and then sends it to all clients (all users in the game room if \hyperref[ssub:gm_game_message]{GM}, all users connected to host if \hyperref[ssub:lm_lobby_message]{LM}), including the client who originated the \hyperref[ssub:bm_broadcast_message]{BM - Broadcast Message} directive.
+\end{description}
+
+% subsubsection bm_broadcast_message (end)
+
+\subsubsection{CL - Close Client} % (fold)
+\label{ssub:cl_close_client}
+
+\begin{description}
+  \item[Purpose] Requests host to drop the client connection.
+  \item[Format] Reason-Text
+  \begin{description}
+    \item[Reason-Text] Text string enclosed in double-quotes.
+  \end{description}
+  \item[Example] No example.
+  \item[Notes] Apparently, the official NetAcquire client reacts in this way (currently unverified): only clients who are using a user-specified port number on their local machine use this directive. This is an attempt to allow the port to be reused by the client. By having the host close the port first, the client is then able to reuse the port right away (in theory). Reason-Text is displayed in the host log if non-blank (however, it currently is never set to a non-null value by clients).
+\end{description}
+
+% subsubsection cl_close_client (end)
+
+\subsubsection{CS - Chain Selected} % (fold)
+\label{ssub:cs_chain_selected}
+
+\begin{description}
+  \item[Purpose] Tells the host the hotel chain the player has selected for a game action (form chain, selecting merger survivor, or selecting merge chain sequence).
+  \item[Format] Chain-ID, Selection-Type
+  \begin{description}
+    \item[Chain-ID] See \hyperref[ssub:chain_id]{Chain-ID}.
+    \item[Selection-Type] \hyperref[ssub:game_status_id]{Game-Status-ID} for the next game action to be performed due to the selection. This value is always the same as the one passed in the preceding \hyperref[ssub:gc_get_chain]{GC - Get Chain} directive.
+  \end{description}
+  \item[Example] \wiredata{CS;255,4;:}
+  \item[Notes] The host proceeds with the game by using the \hyperref[ssub:chain_id]{Chain-ID} to process the game action indicated by Selection-Type.
+\end{description}
+
+% subsubsection cs_chain_selected (end)
+
+\subsubsection{GS - Game State} % (fold)
+\label{ssub:gs_game_state}
+
+\begin{description}
+  \item[Purpose] Requests host to send the client status information about the game.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{GS;;:}
+  \item[Notes] The host sends a series of \hyperref[ssub:gm_game_message]{GM - Game Message} directives with status information about the current game the user is in.
+\end{description}
+
+% subsubsection gs_game_state (end)
+
+\subsubsection{JG - Join Game} % (fold)
+\label{ssub:jg_join_game}
+
+\begin{description}
+  \item[Purpose] Request by a client to join an existing game as a player or a spectator.
+  \item[Format] Game-Number, Player-Flag
+  \begin{description}
+    \item[Game-Number] An integer identifying the number of the game.
+    \item[Player-Flag] 0 if client wishes to observe, or -1 if client wishes to play.
+  \end{description}
+  \item[Example] \wiredata{JG;1,-1;:}
+  \item[Notes] In the official NetAcquire client, Game-Number is entered by the user and may not necessarily be a valid game number.
+\end{description}
+
+% subsubsection jg_join_game (end)
+
+\subsubsection{LG - List Games} % (fold)
+\label{ssub:lg_list_games}
+
+\begin{description}
+  \item[Purpose] Requests host to send the client information about the currently active games.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{LG;;:}
+  \item[Notes] The server sends the client a series of \hyperref[ssub:lm_lobby_message]{LM - Lobby Message} directives for the set of currently active games.
+\end{description}
+
+% subsubsection lg_list_games (end)
+
+\subsubsection{LU - List Users} % (fold)
+\label{ssub:lu_list_users}
+
+\begin{description}
+  \item[Purpose] Requests host to send the client information about the currently active users.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{LU;;:}
+  \item[Notes] The server sends the client a series of \hyperref[ssub:lm_lobby_message]{LM - Lobby Message} directives for the set of currently active users.
+\end{description}
+
+% subsubsection lu_list_users (end)
+
+\subsubsection{LV - Leave Game} % (fold)
+\label{ssub:lv_leave_game}
+
+\begin{description}
+  \item[Purpose] Notifies host of intention to leave the current game the client is in.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{LV;;:}
+  \item[Notes] No notes.
+\end{description}
+
+% subsubsection lv_leave_game (end)
+
+\subsubsection{MD - Merger Disposition} % (fold)
+\label{ssub:md_merger_disposition}
+
+\begin{description}
+  \item[Purpose] Notify server of client's decision what to do with shares after a merge.
+  \item[Format] Sell-Count, Trade-Count
+  \begin{description}
+    \item[Sell-Count] number of shares to be sold for cash.
+    \item[Trade-Count] number of shares to be traded for the merger survivor's chain.
+  \end{description}
+  \item[Example] \wiredata{MD;0,4;:}
+  \item[Notes] Expected response to a \hyperref[ssub:gd_get_disposition]{GD - Get Disposition} directive.
+\end{description}
+
+% subsubsection md_merger_disposition (end)
+
+\subsubsection{P - Purchase} % (fold)
+\label{ssub:p_purchase}
+
+\begin{description}
+  \item[Purpose] Notify host how many shares of each hotel the client purchased.
+  \item[Format] Luxor-Purchased, Tower-Purchased, American-Purchased, Festival-Purchased, Worldwide-Purchased, Continental-Purchased, Imperial-Purchased, End-Game-Flag
+  \begin{description}
+    \item[Luxor-Purchased] Number of Luxor/Sackson shares purchased.
+    \item[Tower-Purchased] Number of Tower/Zeta shares purchased.
+    \item[American-Purchased] Number of American/America shares purchased.
+    \item[Festival-Purchased] Number of Festival/Fusion shares purchased.
+    \item[Worldwide-Purchased] Number of Worldwide/Hydra shares purchased.
+    \item[Continental-Purchased] Number of Continental/Phoenix shares purchased.
+    \item[Imperial-Purchased] Number of Imperial/Quantum shares purchased.
+    \item[End-Game-Flag] see \hyperref[ssub:end_game_flag]{End-Game-Flag}
+  \end{description}
+  \item[Example] \wiredata{P;2,0,0,1,0,0,0,0;:}
+  \item[Notes] None of the variables are optional. The official NetAcquire client does not check any variables to ensure they are reasonable.
+\end{description}
+
+% subsubsection p_purchase (end)
+
+\subsubsection{PG - Start Game Play} % (fold)
+\label{ssub:pg_start_game_play}
+
+\begin{description}
+  \item[Purpose] Notify host of client's desire to start the game.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{PG;;:}
+  \item[Notes] No notes.
+\end{description}
+
+% subsubsection pg_start_game_play (end)
+
+\subsubsection{PI - Ping (host)} % (fold)
+\label{ssub:pi_ping_host_}
+
+\begin{description}
+  \item[Purpose] See if host is awake.
+  \item[Format] Start-Time
+  \begin{description}
+    \item[Start-Time] See example for time format.
+  \end{description}
+  \item[Example] \wiredata{PI;6:08:41 PM;:}
+  \item[Notes] Sends immediate response of a \hyperref[ssub:pr_ping_response_client_]{PR - Ping Response} directive to client.
+\end{description}
+
+% subsubsection pi_ping_host_ (end)
+
+\subsubsection{PL - Add Player} % (fold)
+\label{ssub:pl_add_player}
+
+\begin{description}
+  \item[Purpose] Register client's nickname and version with host.
+  \item[Format] Nickname, Version-ID
+  \begin{description}
+    \item[Nickname] Client's desired nickname.
+    \item[Version-ID] see \hyperref[ssub:version_id]{Version-ID}.
+  \end{description}
+  \item[Example] \wiredata{PL;Champion,2,0,3;:}
+  \item[Notes] Sent by client immediately after receiving \hyperref[ssub:sp_start_player]{SP - Start Player} directive as part of the \hyperref[sub:connection_handshake]{Connection Handshake}.
+\end{description}
+
+% subsubsection pl_add_player (end)
+
+\subsubsection{PR - Ping Response (host)} % (fold)
+\label{ssub:pr_ping_response_host_}
+
+\begin{description}
+  \item[Purpose] Client's response to a host's \hyperref[ssub:pi_ping_client_]{PI - Ping} directive.
+  \item[Format] Ping-Start-Time
+  \begin{description}
+    \item[Ping-Start-Time] See example for time format.
+  \end{description}
+  \item[Example] PR;6:08:41 PM;:
+  \item[Notes] Unsure if Ping-Start-Time should be the time the original ping started, or the time the response was sent. This directive seems to have no in-game effect; rather, it is for the information of curious users.
+\end{description}
+
+% subsubsection pr_ping_response_host_ (end)
+
+\subsubsection{PT - Play Tile} % (fold)
+\label{ssub:pt_play_tile}
+
+\begin{description}
+  \item[Purpose] Notify host of the tile the client wishes to play.
+  \item[Format] Played-Rack-Tile
+  \begin{description}
+    \item[Played-Rack-Tile] the Rack-Tile for the tile the player wishes to place on the board.
+  \end{description}
+  \item[Example] \wiredata{PT;3;:}
+  \item[Notes] The official NetAcquire client does not check whether Played-Rack-Tile refers to a tile that can be legally played.
+\end{description}
+
+% subsubsection pt_play_tile (end)
+
+\subsubsection{SG - Start Game} % (fold)
+\label{ssub:sg_start_game}
+
+\begin{description}
+  \item[Purpose] Notify host of desire to create a new game.
+  \item[Format] Player-Limit
+  \begin{description}
+    \item[Player-Limit] Integer denoting number of players allowed in the game.
+  \end{description}
+  \item[Example] \wiredata{SG;5;:}
+  \item[Notes] Player-Limit should be a reasonable value, i.e. greater than two and less than 10. The rules for Acquire recommend a maximum of six players; NetAcquire clients should not be expected to handle more.
+\end{description}
+
+% subsubsection sg_start_game (end)
+
+% subsection host_processed_directives (end)
+
+\subsection{Client-processed directives} % (fold)
+\label{sub:client_processed_directives}
+
+Directives sent from a host to a client, to be processed by the client.
+
+\subsubsection{AT - Activate Tile} % (fold)
+\label{ssub:at_activate_tile}
+
+\begin{description}
+  \item[Purpose] Set a rack tile's state.
+  \item[Format] Rack-Tile, Tile-ID, Rack-Color
+  \begin{description}
+    \item[Rack-Tile] See \hyperref[ssub:rack_tile]{Rack-Tile}.
+    \item[Tile-ID] See \hyperref[ssub:tile_id]{Tile-ID}.
+    \item[Rack-Color] See \hyperref[ssub:chain_id]{Chain-ID}.
+  \end{description}
+  \item[Example] \wiredata{AT;1,56,12632256;:}
+  \item[Notes] Receiving this directive for a tile the client doesn't have on his rack means he just drew said tile.
+\end{description}
+
+% subsubsection at_activate_tile (end)
+
+\subsubsection{GC - Get Chain} % (fold)
+\label{ssub:gc_get_chain}
+
+\begin{description}
+  \item[Purpose] Ask client to choose a hotel from a list.
+  \item[Format] Selection-Type, Hotel-Indexes
+  \begin{description}
+    \item[Selection-Type] \hyperref[ssub:game_status_id]{Game-Status-ID} for the game's next action (i.e. the one undertaken after this is processed). Limited to: 4 - Form Chain (creating a new hotel) 6 - Surviving Hotel (choosing the survivor among hotels tied in size) 8 - Get Disposition (after selecting merging chain).
+    \item[Hotel-Indexes] A list of indexes indicating available hotels (1=Luxor, 2=Tower, ..., 7=Imperial)
+  \end{description}
+  \item[Example] \wiredata{GC;4,1,2,3,5,6,7;:}
+  \item[Notes] The host expects the immediate response of a \hyperref[ssub:cs_chain_selected]{CS - Chain Selected} directive.
+\end{description}
+
+% subsubsection gc_get_chain (end)
+
+\subsubsection{GD - Get Disposition} % (fold)
+\label{ssub:gd_get_disposition}
+
+\begin{description}
+  \item[Purpose] Ask client what he wants to do with his shares in a disappearing hotel.
+  \item[Format] Merger-Flag, Chain-Name, Chain-Holding, Survivor-Shares-Available, Chain-ID, Survivor-Chain-ID
+  \begin{description}
+    \item[Merger-Flag] Purpose unknown. Observed value ``True'' when someone else merged. Observed value ``False'' when client merged.
+    \item[Chain-Name] Name of hotel whose shares are being dealt with.
+    \item[Chain-Holding] Number of shares client has in hotel.
+    \item[Survivor-Shares-Available] Maximum number of shares that can be traded for.
+    \item[Chain-ID] Chain-ID of hotel being dealt with (see \hyperref[ssub:chain_id]{Chain-ID}).
+    \item[Survivor-Chain-ID] Chain-ID of surviving hotel (see \hyperref[ssub:chain_id]{Chain-ID}).
+  \end{description}
+  \item[Example] \wiredata{GD;True,Tower,4,15,65535,16512;:}
+  \item[Notes] Appears to use string literals ``True'' and ``False'', not 0 and -1, for boolean values.
+\end{description}
+
+% subsubsection gd_get_disposition (end)
+
+\subsubsection{GM - Game Message} % (fold)
+\label{ssub:gm_game_message}
+
+\begin{description}
+  \item[Purpose] Display a message in-game.
+  \item[Format] Message-Text
+  \begin{description}
+    \item[Message-Text] The message to be displayed. See \hyperref[ssub:message_text]{Message-Text} for quoting/escaping details.
+  \end{description}
+  \item[Example] \wiredata{GM;``Show this message in the game's chat.'';:}
+  \item[Notes] No notes.
+\end{description}
+
+% subsubsection gm_game_message (end)
+
+\subsubsection{GP - Get Purchase} % (fold)
+\label{ssub:gp_get_purchase}
+
+\begin{description}
+  \item[Purpose] Ask client what he would like to purchase.
+  \item[Format] Game-Can-End-Flag, Cash-Available
+  \begin{description}
+    \item[Game-Can-End-Flag] See \hyperref[ssub:game_can_end_flag]{Game-Can-End-Flag}.
+    \item[Cash-Available] The cash the client has on hand.
+  \end{description}
+  \item[Example] \wiredata{GP;0,6000;:}
+  \item[Notes] Server expects eventual response of \hyperref[ssub:p_purchase]{P - Purchase} directive.
+\end{description}
+
+% subsubsection gp_get_purchase (end)
+
+\subsubsection{GT - Get Tile} % (fold)
+\label{ssub:gt_get_tile}
+
+\begin{description}
+  \item[Purpose] Tell client to play a tile.
+  \item[Format] No parameters.
+  \item[Example] \wiredata{GT;;:}
+  \item[Notes] Server expects eventual response of \hyperref[ssub:pt_play_tile]{PT - Play Tile} directive.
+\end{description}
+
+% subsubsection gt_get_tile (end)
+
+\subsubsection{LM - Lobby Message} % (fold)
+\label{ssub:lm_lobby_message}
+
+\begin{description}
+  \item[Purpose] Display a message in the lobby.
+  \item[Format] Message-Text
+  \begin{description}
+    \item[Message-Text] The message to be displayed. See \hyperref[ssub:message_text]{Message-Text} for quoting/escaping details.
+  \end{description}
+  \item[Example] \wiredata{LM;``Show this message in the lobby.'';:}
+  \item[Notes] No notes.
+\end{description}
+
+% subsubsection lm_lobby_message (end)
+
+\subsubsection{M - Client Message} % (fold)
+\label{ssub:m_client_message}
+
+\begin{description}
+  \item[Purpose] Display message box.
+  \item[Format] Client-Message-Text
+  \begin{description}
+    \item[Client-Message-Text] A parameter list-like string of message box options, apparently in the form Dialog-Type, Dialog-Title, Dialog-Text, enclosed in double quotes.
+  \end{description}
+  \item[Example] \wiredata{M;``I;Game ended;The game has ended, click OK to view final game results.'';:}
+  \item[Notes] Some announcements, such as entering Test Mode or the game being over, are only given through this directive.
+\end{description}
+
+% subsubsection m_client_message (end)
+
+\subsubsection{PI - Ping (client)} % (fold)
+\label{ssub:pi_ping_client_}
+
+\begin{description}
+  \item[Purpose] Initialize a ping attempt.
+  \item[Format] Ping-Start-Time
+  \begin{description}
+    \item[Ping-Start-Time] See example for time format.
+  \end{description}
+  \item[Example] \wiredata{PI;6:08:41 PM;:}
+  \item[Notes] Expects a \hyperref[ssub:pr_ping_response_client_]{PR - Ping Response} as immediate response from client.
+\end{description}
+
+% subsubsection pi_ping_client_ (end)
+
+\subsubsection{PR - Ping Response (client)} % (fold)
+\label{ssub:pr_ping_response_client_}
+
+\begin{description}
+  \item[Purpose] Respond to host's \hyperref[ssub:pi_ping_host_]{PI - Ping} directive.
+  \item[Format] Ping-Start-Time, Host-Nickname
+  \begin{description}
+    \item[Ping-Start-Time] See example for time format.
+    \item[Host-Nickname] This parameter appears absent from actual directives in the official NetAcquire client.
+  \end{description}
+  \item[Example] \wiredata{PR;6:08:41 PM;:}
+  \item[Notes] Unsure if Ping-Start-Time should be the time the original ping started, or the time the response was sent. This directive seems to have no in-game effect; rather, it is for the information of curious users.
+\end{description}
+
+% subsubsection pr_ping_response_client_ (end)
+
+\subsubsection{SB - Set Board Status} % (fold)
+\label{ssub:sb_set_board_status}
+
+\begin{description}
+  \item[Purpose] Indicate that a tile's status has changed.
+  \item[Format] Tile-ID, Tile-State
+  \begin{description}
+    \item[Tile-ID] See \hyperref[ssub:tile_id]{Tile-ID}.
+    \item[Tile-State] See \hyperref[ssub:tile_state]{Tile-State}.
+  \end{description}
+  \item[Example] \wiredata{SB;99,0;:}
+  \item[Notes] If this directive refers to a tile on a player's rack, assume that player has played the tile (i.e. take it off the rack).
+\end{description}
+
+% subsubsection sb_set_board_status (end)
+
+\subsubsection{SP - Start Player} % (fold)
+\label{ssub:sp_start_player}
+
+\begin{description}
+  \item[Purpose] Notify client that connection is complete.
+  \item[Format] Version-ID, Host-Nickname
+  \begin{description}
+    \item[Version-ID] See \hyperref[ssub:version_id]{Version-ID}.
+    \item[Host-Nickname] The nickname of the host.
+  \end{description}
+  \item[Example] \wiredata{SP;2,0,3,Champion;:}
+  \item[Notes] Part of the \hyperref[sub:connection_handshake]{Connection Handshake}.
+\end{description}
+
+% subsubsection sp_start_player (end)
+
+\subsubsection{SS - Set State} % (fold)
+\label{ssub:ss_set_state}
+
+\begin{description}
+  \item[Purpose] Set internal state of official NetAcquire client.
+  \item[Format] Client-State-ID
+  \begin{description}
+    \item[Client-State-ID] See \hyperref[ssub:client_state_id]{Client-State-ID}.
+  \end{description}
+  \item[Example] \wiredata{SS;3;:}
+  \item[Notes] Part of the \hyperref[sub:connection_handshake]{Connection Handshake}.
+\end{description}
+
+% subsubsection ss_set_state (end)
+
+\subsubsection{SV - Set Value} % (fold)
+\label{ssub:sv_set_value}
+
+\begin{description}
+  \item[Purpose] Fiddle with the user interface.
+  \item[Format] Form-Name, Control-Name, Control-Index, Property-ID, Property-Value
+  \begin{description}
+    \item[Form-Name] String identifying the internal form name that contains the control whose property is to be set.
+    \item[Control-Name]
+    \item[Control-Index]
+    \item[Property-ID] String identifying the name of the property to be set.
+    \item[Property-Value]
+  \end{description}
+  \item[Example] \wiredata{SV;frmTileRack,cmdTile,1,Visible,0;:}
+  \item[Notes] See section \hyperref[sec:set_value_breakdown]{\ref{sec:set_value_breakdown}~(Set Value breakdown)} for more information.
+\end{description}
+
+% subsubsection sv_set_value (end)
+
+% subsection client_processed_directives (end)
+
+% section communication_protocol (end)
+
+\section{Set Value breakdown} % (fold)
+\label{sec:set_value_breakdown}
+
+The \hyperref[ssub:sv_set_value]{SV directive} wraps a lot of very useful information within its parameters. This is a little guide to some of them.
+
+\subsection{\texttt{frmScoreSheet}} % (fold)
+\label{sub:frmscoresheet}
+
+\texttt{SV;frmScoreSheet,lblData,\textrm{Control-Index},Caption,\textrm{Property-Value}}
+
+The value in the Property-Value parameter could bear information of players' names, the number of shares a player has in a hotel, or the amount of cash a player has. Which player and what piece of information depends on the Control-Index as shown in the accompanying table.
+
+\begin{tabular}{r|l}
+  Control-Index & Datum                                                  \\
+  \hline
+   1-6  & Player name                                                    \\
+   9-15 & Shares of hotel in bank (Luxor/Sackson, Tower/Zeta, $\ldots$)  \\
+  17-23 & Size of hotels (Luxor/Sackson, Tower/Zeta, $\ldots$)           \\
+  25-31 & Price of shares (\$100s) (Luxor/Sackson, Tower/Zeta, $\ldots$) \\
+  33-38 & Player 1-6's shares of Luxor/Sackson                           \\
+  40-45 & Player 1-6's shares of Tower/Zeta                              \\
+  47-52 & Player 1-6's shares of American/America                        \\
+  54-59 & Player 1-6's shares of Festival/Fusion                         \\
+  61-66 & Player 1-6's shares of Worldwide/Hydra                         \\
+  68-73 & Player 1-6's shares of Continental/Quantum                     \\
+  75-80 & Player 1-6's shares of Imperial/Phoenix                        \\
+  82-87 & Player 1-6's cash
+\end{tabular}
+
+% subsection frmscoresheet (end)
+
+\subsection{\texttt{frmTileRack}} % (fold)
+\label{sub:frmtilerack}
+
+The player's tile rack. To hide a tile (e.g. when a player has a less than full tile rack):
+
+\wiredata{SV;frmTileRack,cmdTile,\textrm{\hyperref[ssub:rack_tile]{Rack-Tile}},Visible,0}
+
+See section \ref{ssub:rack_tile} for possible values for Rack-Tile.
+
+% subsection frmtilerack (end)
+
+\subsection{\texttt{frmNetAcquire}} % (fold)
+\label{sub:frmnetacquire}
+
+This is the NetAcquire client window.
+
+To set the status bar text (bottom of window), try something like this:
+
+\wiredata{SV;frmNetAcquire,status,-1,SimpleText,"Welcome to the game!";:}
+
+% subsection frmnetacquire (end)
+
+% section set_value_breakdown (end)
+
+\section{Document history} % (fold)
+\label{sec:document_history}
+
+\begin{description}
+  \item[2010-Nov-11 (nwaite)] Start \hyperref[sec:set_value_breakdown]{breaking down} the \hyperref[ssub:sv_set_value]{SV directive}.
+  \item[2010-Nov-06 (nwaite)] {\TeX}ification.
+  \item[2009-Jul-06 (nwaite)] Added info about various names of hotel chains, and about escaping quotation marks in quoted parameters. Removed bits about parsing impossibilities.
+  \item[2009-Apr-07 (nwaite)] Added the Connection Handshake section; updated \hyperref[ssub:client_state_id]{Client-State-ID} and \hyperref[ssub:ss_set_state]{SS - Set State} sections, among others, with handshake info.
+  \item[2008-Sep-29 (nwaite)] Enlarged Table of Contents and added some notes to a few directives.
+  \item[2008-Jul-13 (nwaite)] Started adding deduced meanings of the \hyperref[ssub:ss_set_state]{SS} directive to the \hyperref[ssub:client_state_id]{Client-State-ID} table.
+  \item[2008-Apr-21 (nwaite)] Fleshed out various directives.
+  \item[2008-Apr-20 (nwaite)] Started and finished cleanup. Added examples where known. Fleshed out \hyperref[ssub:at_activate_tile]{AT}, \hyperref[ssub:jg_join_game]{JG}, \hyperref[ssub:sb_set_board_status]{SB} and \hyperref[ssub:ss_set_state]{SS} directives.
+  \item[2008-Apr-10 (nwaite)] Retrieved original from http://www3.telus.net/kensit/NetAcquire/.
+\end{description}
+
+% section document_history (end)
+
+\end{document}
