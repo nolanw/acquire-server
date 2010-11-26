@@ -43,7 +43,11 @@ class NetAcquire(object):
             fileno = client.fileno()
             self.names[fileno] = self.shaking_hands[fileno]
             del self.shaking_hands[fileno]
-            self.set_client_state(client, 3)
+            if message['game']:
+                self.set_client_state(client, 4)
+                self.update_game_views(message['game'])
+            else:
+                self.set_client_state(client, 3)
         announcement = '* %s has entered the lobby.' % message['player']
         self.send_to_all_clients(Directive('LM', announcement))
     
@@ -262,6 +266,87 @@ class NetAcquire(object):
         announcement = '* %(player)s formed %(hotel)s.' % message
         game = message['game']
         self.send_to_clients_in_game(game, Directive('GM', announcement))
+        self.update_game_views(game)
+    
+    def choose_survivor_action(self, game):
+        """Someone needs to choose which hotel will survive a merge."""
+        first_action = game['action_queue'][0]
+        hotels = gametools.hotels_adjacent_to_tile(game, first_action['tile'])
+        largest = max(map(lambda h: len(h['tiles']), hotels))
+        choices = [self.hotel_index(h['name']) 
+                   for h in hotels if len(h['tiles']) == largest]
+        client = self.client_named(first_action['player'])
+        if client:
+            self.send_to_client(client, Directive('GC', 6, *choices))
+    
+    # See 'CS_directive' method for choosing a merge survivor (response to 
+    # Get Chain directive with first parameter 6).
+    
+    def survivor_chosen_message(self, message):
+        """Someone chose which hotel will survive a merge."""
+        announcement = ('* %s will survive the merge.' %
+                        message['survivor'].capitalize())
+        game = message['game']
+        self.send_to_clients_in_game(game, Directive('GM', announcement))
+        self.update_game_views(game)
+    
+    def disburse_shares_action(self, game):
+        """Someone needs to deal with their shares in a disappearing hotel."""
+        first_action = game['action_queue'][0]
+        client = self.client_named(first_action['player'])
+        if client:
+            player = gametools.player_named(game, first_action['player'])
+            survivor = gametools.hotel_named(game, first_action['survivor'])
+            hotel_name = first_action['hotel']
+            hotel = gametools.hotel_named(game, hotel_name)
+            args = [hotel_name.capitalize(), player['shares'][hotel_name], 
+                    gametools.bank_shares(game, survivor), 
+                    self.hotel_id(hotel_name), self.hotel_id(survivor['name'])]
+            self.send_to_client(client, Directive('GD', 'True', *args))
+    
+    def MD_directive(self, client, directive):
+        """A client decided what to do with their shares."""
+        try:
+            sell = int(directive[0])
+            trade = int(directive[1])
+        except IndexError, ValueError:
+            self.log.debug('failed Merge Disposition directive: %s', directive)
+            return
+        self.send_to_backend('disburse_shares', sell=sell, trade=trade, 
+                             player=self.name_of_client(client))
+    
+    def shares_disbursed_message(self, message):
+        """Someone dealt with their shares in a disappearing hotel."""
+        player_name = message['player']
+        game = message['game']
+        disbursement = message['disbursement']
+        player = gametools.player_named(game, player_name)
+        kept = player['shares'][disbursement['hotel']]
+        sold = disbursement['sell']
+        traded = disbursement['trade']
+        hotel_name = disbursement['hotel'].capitalize()
+        survivor_name = message['survivor'].capitalize()
+        pluralize = lambda i: 's' if i != 1 else ''
+        announcement = '* %s ' % player_name
+        if kept or sold:
+            announcement += ' '
+            plural = pluralize(sold)
+            if kept:
+                announcement += 'kept %d ' % kept
+                if sold:
+                    announcement += 'and '
+                else:
+                    plural = pluralize(kept)
+            if sold:
+                announcement += 'sold %d ' % sold
+            announcement += 'share%s of %s' % (plural, hotel_name)
+        if traded:
+            if kept or sold:
+                announcement += ' and '
+            plural = pluralize(traded / 2)
+            announcement += 'traded for %d share%s of %s' % (traded / 2, plural, 
+                                                             survivor_name)
+        self.send_to_clients_in_game(game, Directive('GM', announcement + '.'))
         self.update_game_views(game)
     
     def purchase_action(self, game):
@@ -549,8 +634,14 @@ class NetAcquire(object):
             else:
                 rack = new_rack
             added = [t for t in new_rack if t not in rack]
-            for tile in added:
-                rack[rack.index(None)] = tile
+            # This try/catch is here because a ValueError occurs when 
+            # reconnecting while the purchase dialog is open in NetAcquire.
+            # Should probably figure that out and ditch this try/catch.
+            try:
+                for tile in added:
+                    rack[rack.index(None)] = tile
+            except ValueError:
+                rack = new_rack
             new_rack = rack
         self.client_racks[fileno] = new_rack
     

@@ -23,7 +23,8 @@ class Backend(object):
             self.log.debug('Already have a player named %s.', player)
         else:
             self.players.add(player)
-            self.send_to_frontends('logged_in', player=player)
+            self.send_to_frontends('logged_in', player=player, 
+                                   game=self.game_for_player(player))
             self.log.debug('Hello %s!', player)
     
     def logout_message(self, message):
@@ -167,6 +168,44 @@ class Backend(object):
             return
         self.send_to_frontends('hotel_created', game=game, hotel=hotel['name'], 
                                player=player_name)
+    
+    def choose_survivor_message(self, message):
+        """Someome chose which hotel will survive a merge."""
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        if not game:
+            return
+        try:
+            player = gametools.player_named(game, player_name)
+            survivor = gametools.hotel_named(game, message['hotel'])
+            gametools.choose_survivor(game, player, survivor)
+        except gametools.GamePlayNotAllowedError, e:
+            self.send_error(player_name, 'Cannot choose survivor', e)
+            return
+        self.send_to_frontends('survivor_chosen', game=game, 
+                               survivor=survivor['name'], player=player_name)
+    
+    def disburse_shares_message(self, message):
+        """Someone handled their shares in a disappearing hotel."""
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        if not game:
+            return
+        first_action = game['action_queue'][0]
+        try:
+            player = gametools.player_named(game, player_name)
+            disbursement = {
+                'hotel': first_action['hotel'],
+                'sell': message['sell'],
+                'trade': message['trade'],
+            }
+            survivor = gametools.disburse_shares(game, player, disbursement)
+        except gametools.GamePlayNotAllowedError, e:
+            self.send_error(player_name, 'Cannot disburse shares', e)
+            return
+        self.send_to_frontends('shares_disbursed', game=game, 
+                               player=player_name, disbursement=disbursement, 
+                               survivor=survivor['name'])
     
     def purchase_message(self, message):
         """Someone bought some shares and maybe ended the game."""

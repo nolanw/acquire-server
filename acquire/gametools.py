@@ -465,7 +465,7 @@ def merge_hotels(game, merging_player, tile, survivor):
         for player in player_order(game, merging_player):
             if player['shares'][hotel['name']]:
                 append_action(game, 'disburse_shares', player, 
-                              hotel=hotel['name'])
+                              hotel=hotel['name'], survivor=survivor['name'])
     game['merge_info'] = {
         'tile': tile, 
         'survivor': survivor['name'],
@@ -486,6 +486,7 @@ def disburse_shares(game, player, disbursement):
         raise GamePlayNotAllowedError('expected disbursement of %s shares, not' 
                                       ' %s shares' % (first_action['hotel'],
                                                       disbursement['hotel']))
+    disbursement = dict(disbursement)
     del disbursement['hotel']
     from_hotel = hotel_named(game, game['action_queue'][0]['hotel'])
     shares_held = player['shares'][from_hotel['name']]
@@ -504,6 +505,7 @@ def disburse_shares(game, player, disbursement):
     game['action_queue'].pop(0)
     if not game['action_queue']:
         clean_up_merge(game)
+    return survivor
 
 def clean_up_merge(game):
     """Put all disappearing hotels' tiles and the merge tile into the surviving 
