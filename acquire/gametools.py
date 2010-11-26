@@ -585,6 +585,16 @@ def advance_turn(game, player, can_purchase=True):
 
 #### End of game
 
+def game_can_end(game):
+    """Return True if the game can end right now, or False otherwise."""
+    over_40 = [h for h in game['hotels'] if len(h['tiles']) > 40]
+    unsafe_on_board = [h for h in hotels_on_board(game)
+                               if h['tiles'] and len(h['tiles']) < 11]
+    if over_40 or not unsafe_on_board:
+        return True
+    else:
+        return False
+
 def game_over(game):
     """Attempt to end the game, paying out final bonuses and selling as many 
     shares as possible.
@@ -593,10 +603,7 @@ def game_over(game):
     """
     if 'over' in game:
         raise GamePlayNotAllowedError('game is already over')
-    over_40 = [h for h in game['hotels'] if len(h['tiles']) > 40]
-    unsafe_on_board = [h for h in hotels_on_board(game)
-                               if h['tiles'] and len(h['tiles']) < 11]
-    if not over_40 and unsafe_on_board:
+    if not game_can_end(game):
         raise GamePlayNotAllowedError('neither end-game condition met')
     for hotel in hotels_on_board(game):
         pay_merge_bonuses(game, [hotel])

@@ -123,15 +123,15 @@ class Backend(object):
         """Someone wants to start the game. If it's not the host of the game, 
         let's ignore them.
         """
-        player = message['player']
-        game = self.game_for_player(player)
-        if game and gametools.host(game)['name'] == player:
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        if game and gametools.host(game)['name'] == player_name:
             try:
                 start_tiles = gametools.start_game(game)
             except gametools.GamePlayNotAllowedError, e:
-                self.send_error(player, 'Cannot start game play', e)
+                self.send_error(player_name, 'Cannot start game play', e)
                 return
-            self.send_to_frontends('play_game', game=game, 
+            self.send_to_frontends('play_game', game=game, player=player_name,
                                    start_tiles=start_tiles)
     
     
@@ -147,7 +147,7 @@ class Backend(object):
             player = gametools.player_named(game, player_name)
             gametools.play_tile(game, player, message['tile'])
         except gametools.GamePlayNotAllowedError, e:
-            self.send_error(player, 'Cannot play tile', e)
+            self.send_error(player_name, 'Cannot play tile', e)
             return
         self.send_to_frontends('tile_played', game=game, tile=message['tile'], 
                                player=player_name)
@@ -163,9 +163,25 @@ class Backend(object):
             hotel = gametools.hotel_named(game, message['hotel'])
             gametools.create_hotel(game, player, hotel)
         except gametools.GamePlayNotAllowedError, e:
-            self.send_error(player, 'Cannot create hotel', e)
+            self.send_error(player_name, 'Cannot create hotel', e)
             return
         self.send_to_frontends('hotel_created', game=game, hotel=hotel['name'], 
+                               player=player_name)
+    
+    def purchase_message(self, message):
+        """Someone bought some shares and maybe ended the game."""
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        if not game:
+            return
+        order = message['order']
+        try:
+            player = gametools.player_named(game, player_name)
+            gametools.purchase(game, player, order, message['end_game'])
+        except gametools.GamePlayNotAllowedError, e:
+            self.send_error(player_name, 'Cannot complete purchase', e)
+            return
+        self.send_to_frontends('purchased', game=game, order=order, 
                                player=player_name)
     
     

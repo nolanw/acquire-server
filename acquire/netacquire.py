@@ -258,8 +258,55 @@ class NetAcquire(object):
     
     def hotel_created_message(self, message):
         """Someone created a new hotel."""
+        message['hotel'] = message['hotel'].capitalize()
         announcement = '* %(player)s formed %(hotel)s.' % message
         game = message['game']
+        self.send_to_clients_in_game(game, Directive('GM', announcement))
+        self.update_game_views(game)
+    
+    def purchase_action(self, game):
+        """Someone can purchase shares in a hotel."""
+        game_can_end = 0 if not gametools.game_can_end(game) else -1
+        player_name = game['action_queue'][0]['player']
+        client = self.client_named(player_name)
+        if client:
+            player = gametools.player_named(game, player_name)
+            directive = Directive('GP', game_can_end, player['cash'])
+            self.send_to_client(client, directive)
+    
+    def P_directive(self, client, directive):
+        """A client wants to buy some shares and maybe end the game."""
+        if directive[7] == '0':
+            end_game = False
+        else:
+            end_game = True
+        order = dict(zip(gametools.hotel_names, map(int, directive[:7])))
+        order = dict((h, s) for h, s in order.iteritems() if s)
+        self.send_to_backend('purchase', order=order, end_game=end_game, 
+                             player=self.name_of_client(client))
+    
+    def purchased_message(self, message):
+        """Somebody bought some shares in something."""
+        game = message['game']
+        announcement = '* %s bought ' % message['player']
+        order = message['order']
+        hotel_names = [h.capitalize() for h in order.keys()]
+        shares = order.values()
+        plural = lambda i: 's' if i != 1 else ''
+        if not order:
+            announcement += 'nothing'
+        elif len(order) == 1:
+            announcement += '%d share%s of %s' % (shares[0], plural(shares[0]), 
+                                                  hotel_names[0])
+        elif len(order) == 2:
+            announcement += '%d share%s of %s and %d share%s of %s' % (
+                            shares[0], plural(shares[0]), hotel_names[0],
+                            shares[1], plural(shares[1]), hotel_names[1],
+                            )
+        else:
+            announcement += ('1 share each of %s, %s, and %s' %
+                             tuple(hotel_names))
+        announcement += '.'
         self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
     
