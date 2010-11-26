@@ -58,7 +58,7 @@ def remove_player_named(game, player_name):
     
     May raise GameAlreadyStartedError.
     """
-    if game['started']:
+    if game['started'] and not game['ended']:
         raise GameAlreadyStartedError()
     game['players'].remove(player_named(game, player_name))
 
@@ -178,12 +178,14 @@ def tiles_that_create_hotels(game):
     """
     tiles = []
     for on_board in game['lonely_tiles']:
-        here_they_are = set(where_is_tile(game, t) 
-                            for t in adjacent_tiles(on_board))
-        if here_they_are & set(hotel_names):
-            continue
-        tiles.extend(t for t in adjacent_tiles(on_board) 
-                             if t not in game['lonely_tiles'])
+        for adjacent in adjacent_tiles(on_board):
+            if adjacent in game['lonely_tiles']:
+                continue
+            here_they_are = set(where_is_tile(game, t) 
+                                for t in adjacent_tiles(adjacent))
+            if here_they_are & set(hotel_names):
+                continue
+            tiles.append(adjacent)
     return tiles
 
 def grows_hotel(game, tile):
@@ -360,9 +362,14 @@ def play_tile(game, player, tile):
             if not game['action_queue']:
                 advance_turn(game, player)
         else:
-            hotel = grows_hotel(game, tile)
-            if hotel:
-                hotel_named(game, hotel)['tiles'].append(tile)
+            hotel_name = grows_hotel(game, tile)
+            if hotel_name:
+                hotel = hotel_named(game, hotel_name)
+                hotel['tiles'].append(tile)
+                for t in adjacent_tiles(tile):
+                    if t in game['lonely_tiles']:
+                        hotel['tiles'].append(t)
+                        game['lonely_tiles'].remove(t)
             else:
                 game['lonely_tiles'].append(tile)
             advance_turn(game, player)
@@ -522,6 +529,10 @@ def clean_up_merge(game):
         survivor['tiles'].extend(hotel['tiles'])
         hotel['tiles'] = []
     survivor['tiles'].append(merge_tile)
+    for tile in adjacent_tiles(merge_tile):
+        if tile in game['lonely_tiles']:
+            survivor['tiles'].append(tile)
+            game['lonely_tiles'].remove(tile)
     advance_turn(game, merging_player)
 
 
@@ -603,7 +614,7 @@ def game_over(game):
     
     Raises GamePlayNotAllowedError if the game cannot end right now.
     """
-    if 'over' in game:
+    if game['ended']:
         raise GamePlayNotAllowedError('game is already over')
     if not game_can_end(game):
         raise GamePlayNotAllowedError('neither end-game condition met')
@@ -615,4 +626,9 @@ def game_over(game):
             if shares[name]:
                 player['cash'] += share_price(hotel) * shares[name]
                 shares[name] = 0
-    game['over'] = True
+    game['ended'] = True
+
+def winners(game):
+    """Return the list of players who won this game."""
+    winning_cash = max(map(lambda p: p['cash'], game['players']))
+    return [p for p in game['players'] if p['cash'] == winning_cash]

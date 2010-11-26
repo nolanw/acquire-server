@@ -92,7 +92,7 @@ class NetAcquire(object):
         self.send_to_clients_in_game(message['game'], Directive('GM', cited))
     
     
-    #### Game listing, starting, joining, leaving, and ending.
+    #### Game listing, starting, joining, and leaving.
     
     def LG_directive(self, client, directive):
         """The client would like a list of active games."""
@@ -187,11 +187,6 @@ class NetAcquire(object):
             directives.append(Directive('GM', announcement))
         self.send_to_clients_in_game(game, ''.join(str(d) for d in directives))
         self.update_game_views(game)
-    
-    def game_over_message(self, message):
-        """A game ended."""
-        announcement = '* Game %d has ended.' % message['game_number']
-        self.send_to_all_clients(Directive('LM', announcement))
     
     
     #### Playing games.
@@ -327,7 +322,7 @@ class NetAcquire(object):
         hotel_name = disbursement['hotel'].capitalize()
         survivor_name = message['survivor'].capitalize()
         pluralize = lambda i: 's' if i != 1 else ''
-        announcement = '* %s ' % player_name
+        announcement = '* %s' % player_name
         if kept or sold:
             announcement += ' '
             plural = pluralize(sold)
@@ -342,10 +337,11 @@ class NetAcquire(object):
             announcement += 'share%s of %s' % (plural, hotel_name)
         if traded:
             if kept or sold:
-                announcement += ' and '
+                announcement += ' and'
             plural = pluralize(traded / 2)
-            announcement += 'traded for %d share%s of %s' % (traded / 2, plural, 
-                                                             survivor_name)
+            announcement += ' traded for %d share%s of %s' % (
+                                traded / 2, plural, survivor_name
+                            )
         self.send_to_clients_in_game(game, Directive('GM', announcement + '.'))
         self.update_game_views(game)
     
@@ -394,6 +390,46 @@ class NetAcquire(object):
         announcement += '.'
         self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
+    
+    
+    #### Game over.
+    
+    def game_over_message(self, message):
+        """A game ended, either because all the players left before it started 
+        or somebody won.
+        """
+        if 'game' in message:
+            game_number = message['game']['number']
+        else:
+            game_number = message['game_number']
+        announcement = '* Game %d has ended.' % game_number
+        self.send_to_all_clients(Directive('LM', announcement))
+        if 'game' in message:
+            game = message['game']
+            announcement = '***** '
+            winning_players = gametools.winners(game)
+            cash = winning_players[0]['cash']
+            winners = map(lambda p: p['name'], winning_players)
+            if len(winners) == 1:
+                announcement += '%s has won%%s with $%d!' % (winners[0], cash)
+            elif len(winners) == 2:
+                announcement += '%s and %s have won%%s with $%d!' % tuple(
+                                    winners + [cash]
+                                )
+            else:
+                announcement += '%s, and %s have won%%s with $%d!' % (
+                                    ', '.join(winners[:-1]), winners[-1], cash
+                                )
+            directive = Directive('GM', announcement % '')
+            self.send_to_clients_in_game(game, directive)
+            directive = Directive('LM', announcement % (' game %d' % 
+                                                        game['number']))
+            self.send_to_all_clients(directive)
+            for player in game['players']:
+                client = self.client_named(player['name'])
+                if client:
+                    self.set_client_state(client, 99)
+                    self.update_scoreboard_view(client, game)
     
     
     #### Error messages

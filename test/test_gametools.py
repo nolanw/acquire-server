@@ -38,6 +38,13 @@ class TestAddingAndRemovingPlayers(unittest.TestCase):
         with self.assertRaises(gametools.GameAlreadyStartedError):
             gametools.remove_player_named(self.game, 'testwomanican')
     
+    def test_remove_player_from_finished_game(self):
+        gametools.add_player_named(self.game, 'testwomanican')
+        gametools.start_game(self.game)
+        self.game['ended'] = True
+        gametools.remove_player_named(self.game, 'testwomanican')
+        self.assertFalse(self.game['players'])
+    
 
 class TestAdjacentTiles(unittest.TestCase):
     
@@ -90,6 +97,11 @@ class TestTilesThatCreateAHotel(unittest.TestCase):
         self.assertEqual(sorted(gametools.tiles_that_create_hotels(self.game), 
                                 key=tile_order), 
                          ['1B', '2A'])
+    
+    def test_tile_adjacent_to_lonely_tile_and_hotel(self):
+        self.game['lonely_tiles'] = ['1A']
+        gametools.hotel_named(self.game, 'sackson')['tiles'] = ['1C', '1D']
+        self.assertFalse('1B' in gametools.tiles_that_create_hotels(self.game))
     
 
 class TestGrowsHotel(unittest.TestCase):
@@ -323,6 +335,13 @@ class TestHotelGrowth(ThreePlayerGameTestCase):
             self.assertEqual(gametools.where_is_tile(self.game, tile), 
                              'phoenix')
         self.assertEqual(len(self.phoenix['tiles']), 6)
+    
+    def test_adjacent_lonely_tiles_added_to_hotel(self):
+        self.game['lonely_tiles'] = ['4C']
+        tile = self.player['rack'][0] = '3C'
+        gametools.play_tile(self.game, self.player, tile)
+        self.assertTrue('4C' in self.phoenix['tiles'])
+        self.assertTrue('4C' not in self.game['lonely_tiles'])
     
 
 class TestTurnRotation(ThreePlayerGameTestCase):
@@ -583,6 +602,12 @@ class TestMerge(ThreePlayerGameTestCase):
         with self.assertRaises(gametools.GamePlayNotAllowedError):
             gametools.disburse_shares(self.game, self.player, disbursement)
     
+    def test_lonely_tiles_adjacent_to_merge_tile(self):
+        self.game['lonely_tiles'] = ['4I']
+        self.merge_quantum_and_fusion(self.quantum)
+        self.assertTrue('4I' in self.quantum['tiles'])
+        self.assertTrue('4I' not in self.game['lonely_tiles'])
+    
 
 class TestUnplayableTileReplenishment(ThreePlayerGameTestCase):
     
@@ -620,7 +645,7 @@ class TestEndOfGame(ThreePlayerGameTestCase):
         tile = self.player['rack'][0] = '1D'
         gametools.play_tile(self.game, self.player, tile)
         gametools.purchase(self.game, self.player, {}, end_game=True)
-        self.assertTrue(self.game['over'])
+        self.assertTrue(self.game['ended'])
     
     def test_bonuses_awarded_at_game_end(self):
         self.sackson['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]

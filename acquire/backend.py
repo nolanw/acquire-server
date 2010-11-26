@@ -118,6 +118,7 @@ class Backend(object):
             if not game['players']:
                 self.games_list.remove(game)
                 self.send_to_frontends('game_over', game_number=game['number'])
+                self.log.debug('Game %d is over.', game['number'])
             self.send_games_list_to_frontends()
     
     def play_game_message(self, message):
@@ -222,6 +223,8 @@ class Backend(object):
             return
         self.send_to_frontends('purchased', game=game, order=order, 
                                player=player_name)
+        if game['ended']:
+            self.send_to_frontends('game_over', game=game)
     
     
     #### Helpers
