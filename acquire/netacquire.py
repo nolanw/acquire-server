@@ -190,6 +190,27 @@ class NetAcquire(object):
         self.send_to_all_clients(Directive('LM', announcement))
     
     
+    #### Playing games.
+    
+    def PT_directive(self, client, directive):
+        """A client wants to play a tile."""
+        try:
+            i = int(directive[0]) - 1
+            tile = self.client_racks[client.fileno()][i]
+        except IndexError, ValueError:
+            log.debug('failed Play Tile for client %d: %s', client.fileno(), 
+                      directive)
+        self.send_to_backend('play_tile', tile=tile, 
+                             player=self.name_of_client(client))
+    
+    def tile_played_message(self, message):
+        """Someone played a tile."""
+        announcement = '* %(player)s played tile %(tile)s.' % message
+        game = message['game']
+        self.send_to_clients_in_game(game, Directive('GM', announcement))
+        self.update_game_views(game)
+    
+    
     #### Error messages
 
     def error_message(self, message):

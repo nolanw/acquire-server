@@ -131,6 +131,21 @@ class Backend(object):
                                    start_tiles=start_tiles)
     
     
+    #### Playing games.
+    
+    def play_tile_message(self, message):
+        """Someone played a tile."""
+        player_name = message['player']
+        game = self.game_for_player(player_name)
+        try:
+            player = gametools.player_named(game, player_name)
+            gametools.play_tile(game, player, message['tile'])
+        except gametools.GamePlayNotAllowedError, e:
+            self.send_error(player, 'Cannot play tile', e)
+        self.send_to_frontends('tile_played', game=game, tile=message['tile'], 
+                               player=player_name)
+    
+    
     #### Helpers
     
     def __init__(self):
