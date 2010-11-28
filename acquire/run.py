@@ -1,6 +1,14 @@
 # Start up a backend and a NetAcquire frontend.
+# This script is meant to quickly get up and running, so I'm ok with the path 
+# mangling going on here on a failed import.
 
 from threading import Thread
+try:
+    import acquire
+except ImportError:
+    import os, sys
+    path_here = os.path.dirname(os.path.realpath(__file__))
+    sys.path.insert(0, os.path.realpath(os.path.join(path_here, '../')))
 from acquire.backend import Backend
 from acquire.netacquire import NetAcquire
 
