@@ -432,6 +432,14 @@ class NetAcquire(object):
                     self.update_scoreboard_view(client, game)
     
     
+    #### Log out
+    
+    def logged_out_message(self, message):
+        """Someone logged out."""
+        player = message['player']
+        self.send_to_all_clients(Directive('LM', '* %s has left.' % player))
+    
+    
     #### Error messages
 
     def error_message(self, message):

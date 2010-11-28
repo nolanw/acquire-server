@@ -32,6 +32,7 @@ class Backend(object):
         player = message['player']
         self.players.discard(player)
         self.log.debug('Goodbye %s.', player)
+        self.send_to_frontends('logged_out', player=player)
     
     
     #### Chat.
