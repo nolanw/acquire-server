@@ -2,10 +2,10 @@ import sys
 import zmq
 from mongrel2.handler import Connection, CTX
 
-broadcast = """logged_in lobby_chat games_list started_game joined_game 
-               left_game game_over""".split()
-game = """play_game tile_played hotel_created survivor_chosen 
-          shares_disbursed purchased""".split()
+broadcast_messages = """logged_in lobby_chat games_list started_game joined_game 
+                        left_game game_over""".split()
+game_messages = """play_game tile_played hotel_created survivor_chosen 
+                   shares_disbursed purchased""".split()
 
 class Mongrel2Handler(object):
     """A Mongrel2 handler for Acquire."""
@@ -16,7 +16,6 @@ class Mongrel2Handler(object):
         self.conn = Connection(sender_id, send_spec, recv_spec)
         self.clients = {}
         self.names = {}
-        self.senders = {}
         self.logging_in = {}
     
     def run(self, backend_push_address="tcp://127.0.0.1:27183", 
@@ -62,7 +61,6 @@ class Mongrel2Handler(object):
         else:
             print 'unknown client sending non-login message'
             return
-        self.senders[req.conn_id] = req.sender
         self.backend_push.send_json(message)
     
     def backend_message(self, message):
@@ -73,23 +71,47 @@ class Mongrel2Handler(object):
                 conn_id = self.logging_in[name]
                 del self.logging_in[name]
                 self.clients[conn_id] = name
+                self.names[name] = conn_id
         elif path == 'duplicate_name':
             name = message['player']
             if name in self.logging_in:
                 conn_id = self.logging_in[name]
-                self.conn.deliver_json(self.senders[conn_id], [conn_id], 
-                                       message)
+                self.conn.deliver_json(self.sender_id, [conn_id], message)
                 del self.logging_in[name]
                 return
-        if path in broadcast:
+        elif path == 'logged_out':
+            name = message['player']
+            if name in self.names:
+                conn_id = self.names[name]
+                del self.names[name]
+                del self.clients[conn_id]
+        elif path == 'games_list':
+            for game in message['games_list']:
+                for player in game['players']:
+                    player['tiles'] = None
+        if path in broadcast_messages:
             self.conn.deliver_json(self.sender_id, self.clients.keys(), message)
-        elif path in game:
-            conn_ids = map(lambda p: self.names[p['name']], 
-                           message['game']['players'])
-            self.conn.deliver_json(self.sender_id, conn_ids, message)
+        elif path in game_messages:
+            game = message['game']
+            if 'tilebag' in game:
+                del game['tilebag']
+            all_tiles = dict((p['name'], p.get('tiles', None)) 
+                             for p in game['players'])
+            for player in game['players']:
+                if 'tiles' in player:
+                    del player['tiles']
+            for player in game['players']:
+                try:
+                    conn_id = self.names[player['name']]
+                except KeyError:
+                    pass
+                else:
+                    player['tiles'] = all_tiles[player['name']]
+                    self.conn.deliver_json(self.sender_id, [conn_id], message)
+                    del player['tiles']
         elif 'player' in message:
             conn_id = self.names[message['player']]
-            self.conn.deliver_json(senders[conn_id], [conn_id], message)
+            self.conn.deliver_json(self.sender_id, [conn_id], message)
         else:
             print 'cannot deliver message'
     
