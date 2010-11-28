@@ -88,27 +88,28 @@ class Mongrel2Handler(object):
         elif path == 'games_list':
             for game in message['games_list']:
                 for player in game['players']:
-                    player['tiles'] = None
+                    if 'rack' in player:
+                        del player['rack']
         if path in broadcast_messages:
             self.conn.deliver_json(self.sender_id, self.clients.keys(), message)
         elif path in game_messages:
             game = message['game']
             if 'tilebag' in game:
                 del game['tilebag']
-            all_tiles = dict((p['name'], p.get('tiles', None)) 
+            all_tiles = dict((p['name'], p.get('rack', None)) 
                              for p in game['players'])
             for player in game['players']:
-                if 'tiles' in player:
-                    del player['tiles']
+                if 'rack' in player:
+                    del player['rack']
             for player in game['players']:
                 try:
                     conn_id = self.names[player['name']]
                 except KeyError:
                     pass
                 else:
-                    player['tiles'] = all_tiles[player['name']]
+                    player['rack'] = all_tiles[player['name']]
                     self.conn.deliver_json(self.sender_id, [conn_id], message)
-                    del player['tiles']
+                    del player['rack']
         elif 'player' in message:
             conn_id = self.names[message['player']]
             self.conn.deliver_json(self.sender_id, [conn_id], message)
