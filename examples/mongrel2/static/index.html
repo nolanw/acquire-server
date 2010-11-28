@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Acquire.js</title>
+  <script src="js/jsonStringify.js"></script>
+  <script src="js/jsSocket.js"></script>
+  <script>
+  window.onload = function(){
+    window.socket = new jsSocket({
+      hostname: 'localhost',
+      port: 8080,
+      path: '@acquire',
+      onOpen: function(){console.log('open!');},
+      onData: function(data){console.log(data);},
+      onClose: function(){console.log('close');}
+    });
+  }
+  </script>
+</head>
+
+<body>
+  <h1>Acquire.js</h1>
+</body>
+</html>
