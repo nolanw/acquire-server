@@ -133,6 +133,8 @@ def start_game(game):
     append_action(game, 'play_tile', starting_player)
     
     game['started'] = True
+    for tile in starting_tiles:
+        starting_tiles[tile] = starting_tiles[tile]['name']
     return starting_tiles
 
 def set_up_hotels(game):
