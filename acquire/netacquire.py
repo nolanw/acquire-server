@@ -178,8 +178,7 @@ class NetAcquire(object):
         # Send all of these directives in one chunk so Acquire.app correctly 
         # parses the directives.
         directives = [Directive('GM', '* The game has begun!')]
-        for start_tile, player in message['start_tiles'].iteritems():
-            name = player['name']
+        for start_tile, name in message['start_tiles'].iteritems():
             client = self.client_named(name)
             if client:
                 self.set_client_state(client, 6)
@@ -295,8 +294,8 @@ class NetAcquire(object):
             hotel_name = first_action['hotel']
             hotel = gametools.hotel_named(game, hotel_name)
             args = [hotel_name.capitalize(), player['shares'][hotel_name], 
-                    gametools.bank_shares(game, survivor), hotel_id(hotel_name),
-                    hotel_id(survivor['name'])]
+                    gametools.bank_shares(game, survivor), 
+                    self.hotel_id(hotel_name), self.hotel_id(survivor['name'])]
             self.send_to_client(client, Directive('GD', 'True', *args))
     
     def MD_directive(self, client, directive):
@@ -689,8 +688,8 @@ class NetAcquire(object):
             new_rack = rack
         self.client_racks[fileno] = new_rack
     
-    @staticmethod
-    def tile_id(tile):
+    @classmethod
+    def tile_id(cls, tile):
         """Returns the NetAcquire Tile-ID of the given tile.
         
         Tile-IDs start at 1 (tile 1A) and increase down the column (i.e. tile 
@@ -702,23 +701,23 @@ class NetAcquire(object):
     chain_ids = (0x0000FF, 0x00FFFF, 0xFF0000, 0x00FF00, 0x004080, 0xFFFF00, 
                  0xFF00FF)
     
-    @staticmethod
-    def hotel_id(hotel_name):
+    @classmethod
+    def hotel_id(cls, hotel_name):
         """Returns the NetAcquire Hotel-ID of the hotel with the given name."""
-        return dict(zip(gametools.hotel_names, chain_ids))[hotel_name]
+        return dict(zip(gametools.hotel_names, cls.chain_ids))[hotel_name]
     
-    @staticmethod
-    def hotel_index(hotel_name):
+    @classmethod
+    def hotel_index(cls, hotel_name):
         """Returns the NetAcquire Chain-Index of the hotel with the given name.
         """
         index_for_name = dict((h, i + 1) 
                               for i, h in enumerate(gametools.hotel_names))
         return index_for_name[hotel_name]
     
-    @staticmethod
-    def hotel_for_chain_id(chain_id):
+    @classmethod
+    def hotel_for_chain_id(cls, chain_id):
         """Returns the name of the hotel with the given Chain-ID."""
-        return dict(zip(chain_ids, gametools.hotel_names))[chain_id]
+        return dict(zip(cls.chain_ids, gametools.hotel_names))[chain_id]
     
     def update_game_views(self, game):
         """Sends a series of Set Value and other directives to all clients of 
@@ -777,13 +776,13 @@ class NetAcquire(object):
         template = Directive('SB', 0, 0)
         send = lambda: self.send_to_client(client, template)
         for tile in game.get('lonely_tiles', []):
-            template[0] = tile_id(tile)
+            template[0] = self.tile_id(tile)
             template[1] = 0
             send()
         for hotel in game.get('hotels', []):
-            template[1] = hotel_id(hotel['name'])
+            template[1] = self.hotel_id(hotel['name'])
             for tile in hotel['tiles']:
-                template[0] = tile_id(tile)
+                template[0] = self.tile_id(tile)
                 send()
     
     def update_rack(self, client, game):
@@ -802,7 +801,7 @@ class NetAcquire(object):
                     chain_id = 0x606060
                 else:
                     chain_id = 0xC0C0C0
-                directive = Directive('AT', i + 1, tile_id(tile), chain_id)
+                directive = Directive('AT', i + 1, self.tile_id(tile), chain_id)
             else:
                 directive = Directive('SV', 'frmTileRack', 'cmdTile', i + 1,
                                       'Visible', 0)
