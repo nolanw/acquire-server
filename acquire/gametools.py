@@ -38,10 +38,7 @@ def player_named(game, player_name):
         - The player dict if the player named is in the game.
         - None if the player named is not in the game.
     """
-    for player in game['players']:
-        if player['name'] == player_name:
-            return player
-    return None
+    return next((p for p in game['players'] if p['name'] == player_name), None)
 
 def add_player_named(game, player_name):
     """If possible, add a new player named player_name to the game.
@@ -65,10 +62,7 @@ def remove_player_named(game, player_name):
 def host(game):
     """Returns the host player of the given game, or None if no players are in
     the given game."""
-    if game['players']:
-        return game['players'][0]
-    else:
-        return None
+    return game.get('players', [None])[0]
 
 def active_player(game):
     """Returns the player who must perform the next action."""
@@ -83,13 +77,10 @@ def player_order(game, starting_player):
     """Return a generator that yields each player in turn order, beginning with 
     the given starting player.
     """
-    players = game['players']
-    num_players = len(game['players'])
-    next_player = lambda p: players[(players.index(p) + 1) % len(players)]
     cur = starting_player
     while True:
         yield cur
-        cur = next_player(cur)
+        cur = player_after(game, cur)
         if cur == starting_player:
             raise StopIteration
 
@@ -169,10 +160,7 @@ def where_is_tile(game, tile):
     """
     if tile in game['lonely_tiles']:
         return 'lonely'
-    for hotel in game['hotels']:
-        if tile in hotel['tiles']:
-            return hotel['name']
-    return None
+    return next((h['name'] for h in game['hotels'] if tile in h['tiles']), None)
 
 def tiles_that_create_hotels(game):
     """Return a list of tiles that, if played, would cause a new hotel to be 
@@ -191,14 +179,11 @@ def tiles_that_create_hotels(game):
     return tiles
 
 def grows_hotel(game, tile):
-    """Return the hotel that would grow if tile was played, or None if no such 
+    """Returns the hotel that would grow if tile was played, or None if no such 
     hotel exists.
     """
     nearby = set(where_is_tile(game, t) for t in adjacent_tiles(tile))
-    for hotel in game['hotels']:
-        if hotel['name'] in nearby:
-            return hotel['name']
-    return None
+    return next((h for h in game['hotels'] if h['name'] in nearby), None)
 
 def tiles_that_merge_safe_hotels(game):
     """Return a list of tiles that are unplayable because, if played, they would
@@ -233,10 +218,7 @@ def hotel_named(game, hotel_name):
     
     Returns the dict for the associated hotel, or None if no such hotel.
     """
-    for hotel in game['hotels']:
-        if hotel['name'] == hotel_name:
-            return hotel
-    return None
+    return next((h for h in game['hotels'] if h['name'] == hotel_name), None)
 
 def bank_shares(game, hotel):
     """Returns the number of shares in the bank for the given hotel."""
@@ -344,10 +326,9 @@ def play_tile(game, player, tile):
     if not hotels_off_board(game) and tile in tiles_that_create_hotels(game):
         raise GamePlayNotAllowedError('cannot create hotel when all are '
                                       'already on board')
-    try:
-        player['rack'].remove(tile)
-    except ValueError:
+    if tile not in player['rack']:
         raise GamePlayNotAllowedError('must play tiles from tile rack')
+    player['rack'].remove(tile)
     game['action_queue'].pop(0)
     
     if tile in tiles_that_create_hotels(game):
@@ -364,9 +345,8 @@ def play_tile(game, player, tile):
             if not game['action_queue']:
                 advance_turn(game, player)
         else:
-            hotel_name = grows_hotel(game, tile)
-            if hotel_name:
-                hotel = hotel_named(game, hotel_name)
+            hotel = grows_hotel(game, tile)
+            if hotel:
                 hotel['tiles'].append(tile)
                 for t in adjacent_tiles(tile):
                     if t in game['lonely_tiles']:
@@ -386,24 +366,21 @@ def create_hotel(game, player, hotel):
     or by the given player.
     """
     first_action = ensure_action(game, 'create_hotel', player)
-    try:
-        creation_tile = first_action['creation_tile']
-    except KeyError:
+    if 'creation_tile' not in first_action:
         raise GamePlayNotAllowedError('cannot create tile without playing a '
                                       'creation tile')
     if hotel not in hotels_off_board(game):
         raise GamePlayNotAllowedError('must create hotel that is off the board')
-    hotel['tiles'] = [creation_tile]
-    while True:
+    hotel['tiles'] = [first_action['creation_tile']]
+    any_added = True
+    while any_added:
         any_added = False
         for tile in tiles_adjacent_to_hotel(hotel):
             if tile in game['lonely_tiles']:
                 hotel['tiles'].append(tile)
                 game['lonely_tiles'].remove(tile)
                 any_added = True
-        if not any_added:
-            break
-    if bank_shares(game, hotel) > 0:
+    if bank_shares(game, hotel):
         player['shares'][hotel['name']] += 1
     game['action_queue'].pop(0)
     advance_turn(game, player)
@@ -487,6 +464,9 @@ def disburse_shares(game, player, disbursement):
     """Disburse player's shares in the hotel requested earlier according to 
     disbursement (whose keys can be any subset of {'trade', 'sell'}).
     
+    Returns the surviving hotel of the merge that required the shares to be 
+    dibursed.
+    
     Raises GamePlayNotAllowedError if a share disbursement from the given player 
     was not expected at this time.
     """
@@ -542,14 +522,13 @@ def clean_up_merge(game):
 
 def purchase(game, player, purchase_order, end_game=False):
     """Purchase the ordered shares on behalf of the given player. If end_game is
-    True, attempt to end the game.
+    True, attempt to end the game, silently ignoring if that is not allowed.
     
     Raises GamePlayNotAllowedError if purchase is unexpected at this time or by 
     the given player, or if the purchase order breaks any rules:
         - No more than three shares purchased at a time.
         - Must be able to afford all of the ordered shares.
         - Can only purchase shares in a hotel that is on the board.
-    or if end_game is True but the game cannot end.
     """
     ensure_action(game, 'purchase', player)
     if sum(purchase_order.values()) > 3:
@@ -572,7 +551,7 @@ def purchase(game, player, purchase_order, end_game=False):
         player['shares'][hotel_name] += shares
     player['cash'] -= subtotal
     game['action_queue'].pop(0)
-    if end_game:
+    if end_game and game_can_end(game):
         game_over(game)
     else:
         advance_turn(game, player, can_purchase=False)
@@ -586,6 +565,10 @@ def advance_turn(game, player, can_purchase=True):
     invited to purchase shares if possible. If this is impossible, or if 
     can_purchase is False, the player's rack is replenished and it becomes the 
     next player's turn.
+    
+    Replenishing a player's rack means drawing tiles from the tilebag until the 
+    player's rack has six tiles on it, discarding any permanently unplayable 
+    tiles encountered on the rack or in the bag.
     """
     if can_purchase:
         for hotel in game['hotels']:
@@ -596,8 +579,10 @@ def advance_turn(game, player, can_purchase=True):
     for tile in list(player['rack']):
         if tile in tiles_that_merge_safe_hotels(game):
             player['rack'].remove(tile)
-    while len(player['rack']) < 6:
-        player['rack'].append(game['tilebag'].pop())
+    while len(player['rack']) < 6 and game['tilebag']:
+        tile = game['tilebag'].pop()
+        if tile not in tiles_that_merge_safe_hotels(game):
+            player['rack'].append(tile)
     append_action(game, 'play_tile', player_after(game, player))
 
 
@@ -628,9 +613,8 @@ def game_over(game):
         for player in game['players']:
             shares = player['shares']
             name = hotel['name']
-            if shares[name]:
-                player['cash'] += share_price(hotel) * shares[name]
-                shares[name] = 0
+            player['cash'] += share_price(hotel) * shares[name]
+            shares[name] = 0
     game['ended'] = True
 
 def winners(game):

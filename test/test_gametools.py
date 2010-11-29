@@ -644,8 +644,8 @@ class TestEndOfGame(ThreePlayerGameTestCase):
     def test_inappropriate_game_end(self):
         self.sackson['tiles'] = ['1A', '2A']
         gametools.play_tile(self.game, self.player, self.player['rack'][0])
-        with self.assertRaises(gametools.GamePlayNotAllowedError):
-            gametools.purchase(self.game, self.player, {}, end_game=True)
+        gametools.purchase(self.game, self.player, {}, end_game=True)
+        self.assertFalse(self.game['ended'])
     
     def test_appropriate_game_end(self):
         self.sackson['tiles'] = [str(i) + 'A' for i in xrange(1, 13)]
