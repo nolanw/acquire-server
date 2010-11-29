@@ -446,6 +446,13 @@ class TestPurchasingShares(ThreePlayerGameTestCase):
         gametools.purchase(self.game, self.player, {'febtober': 2})
         self.assertTrue('febtober' not in self.player['shares'])
     
+    def test_purchase_more_shares_than_in_bank(self):
+        self.quantum['tiles'] = ['1A', '2A']
+        self.game['players'][1]['shares']['quantum'] = 24
+        self.make_purchase_the_next_action()
+        with self.assertRaises(gametools.GamePlayNotAllowedError):
+            gametools.purchase(self.game, self.player, {'quantum': 2})
+    
 
 class TestMerge(ThreePlayerGameTestCase):
     

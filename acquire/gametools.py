@@ -559,6 +559,9 @@ def purchase(game, player, purchase_order, end_game=False):
     for hotel_name, shares in purchase_order.iteritems():
         hotel = hotel_named(game, hotel_name)
         if hotel and hotel['tiles']:
+            if bank_shares(game, hotel) < shares:
+                raise GamePlayNotAllowedError('not enough shares of %s in '
+                                              'bank' % hotel['name'])
             cost = shares * share_price(hotel)
             purchases[hotel['name']] = shares
             subtotal += cost
