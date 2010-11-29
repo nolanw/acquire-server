@@ -6,4 +6,3 @@ More things to do
   - A configuration file for setting frontend/backend addresses and NetAcquire address and port.
   - Set up setuptools.
   - Look into wrapping acquire-server up with py2exe and/or py2app.
-  - Look into a browser frontend, possibly behind [Mongrel2](http://mongrel2.org).
