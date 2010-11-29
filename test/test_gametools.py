@@ -165,7 +165,7 @@ class TestGameSetup(ThreePlayerGameTestCase):
         self.assertEqual(len(self.starting_tiles), len(self.game['players']))
         tileorder = lambda t: t[-1] + t[:-1]
         starting_tile = sorted(self.starting_tiles.keys(), key=tileorder)[0]
-        self.assertEqual(self.game['players'][0], 
+        self.assertEqual(self.game['players'][0]['name'], 
                          self.starting_tiles[starting_tile])
     
     def test_tile_racks(self):
