@@ -1,9 +1,10 @@
+import logging
 import sys
 import zmq
 from mongrel2.handler import Connection, CTX
 
 broadcast_messages = """logged_in lobby_chat games_list started_game joined_game 
-                        left_game game_over""".split()
+                        left_game game_over logged_out""".split()
 game_messages = """play_game tile_played hotel_created survivor_chosen 
                    shares_disbursed purchased""".split()
 
@@ -17,6 +18,9 @@ class Mongrel2Handler(object):
         self.clients = {}
         self.names = {}
         self.logging_in = {}
+        self.log = logging.getLogger('http')
+        self.log.setLevel(logging.DEBUG)
+        self.log.addHandler(logging.StreamHandler())
     
     def run(self, backend_push_address="tcp://127.0.0.1:27183", 
             backend_sub_address="tcp://127.0.0.1:16180"):
@@ -40,13 +44,13 @@ class Mongrel2Handler(object):
                 try:
                     req = self.conn.recv_json()
                     self.client_message(req, req.data)
-                except Exception, e:
-                    print 'failed reading client message:', e
+                except Exception:
+                    self.log.exception('failed reading client message:')
             if self.backend_sub in ready:
                 try:
                     self.backend_message(self.backend_sub.recv_json())
-                except Exception, e:
-                    print 'failed reading backend message', e
+                except Exception:
+                    self.log.exception('failed reading backend message')
             if sys.stdin.fileno() in ready:
                 for _ in sys.stdin:
                     pass
@@ -111,8 +115,12 @@ class Mongrel2Handler(object):
                     self.conn.deliver_json(self.sender_id, [conn_id], message)
                     del player['rack']
         elif 'player' in message:
-            conn_id = self.names[message['player']]
-            self.conn.deliver_json(self.sender_id, [conn_id], message)
+            try:
+                conn_id = self.names[message['player']]
+            except KeyError:
+                pass
+            else:
+                self.conn.deliver_json(self.sender_id, [conn_id], message)
         else:
             print 'cannot deliver message'
     

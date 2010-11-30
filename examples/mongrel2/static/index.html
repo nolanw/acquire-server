@@ -4,21 +4,13 @@
   <title>Acquire.js</title>
   <script src="js/jsonStringify.js"></script>
   <script src="js/jsSocket.js"></script>
-  <script>
-  window.onload = function(){
-    window.socket = new jsSocket({
-      hostname: 'localhost',
-      port: 8080,
-      path: '@acquire',
-      onOpen: function(){console.log('open!');},
-      onData: function(data){console.log(data);},
-      onClose: function(){console.log('close');}
-    });
-  }
-  </script>
+  <script src="js/jquery.js"></script>
+  <script src="js/acquire.js"></script>
 </head>
 
 <body>
   <h1>Acquire.js</h1>
+  <div id="lobby_chat"></div>
+  <legend for="send_lobby_chat">Chat: </legend><input id="send_lobby_chat"> <button id="lobby_chat_button">Send</button>
 </body>
 </html>
