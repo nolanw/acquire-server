@@ -43,7 +43,8 @@ class Mongrel2Handler(object):
             if self.conn.reqs in ready:
                 try:
                     req = self.conn.recv_json()
-                    self.client_message(req, req.data)
+                    if 'path' in req.data:
+                        self.client_message(req, req.data)
                 except Exception:
                     self.log.exception('failed reading client message:')
             if self.backend_sub in ready:
