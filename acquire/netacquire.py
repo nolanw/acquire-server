@@ -98,9 +98,11 @@ class NetAcquire(object):
         """The client would like a list of active games."""
         messages = ['# Active games: %d ...' % len(self.games_list)]
         for game in self.games_list:
-            messages.append('# ->   Game #%d-> %d players, no spectators, '
-                            'In Progress...' % (game['number'], 
-                                                len(game['players'])))
+            plural = 's' if len(game['players']) != 1 else ''
+            status = 'In Progress' if game['started'] else 'Starting'
+            messages.append('# ->   Game #%d-> %d player%s, no spectators, '
+                            '%s ...' % (game['number'], len(game['players']),
+                                        plural, status))
         messages.append('# End of game list.')
         self.send_to_client(client, ''.join(str(Directive('LM', m)) 
                                     for m in messages))

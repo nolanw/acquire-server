@@ -136,6 +136,7 @@ class Backend(object):
                 return
             self.send_to_frontends('play_game', game=game, player=player_name,
                                    start_tiles=start_tiles)
+            self.send_games_list_to_frontends()
     
     
     #### Playing games.
