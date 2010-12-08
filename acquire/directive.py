@@ -54,23 +54,6 @@ class Directive(object):
         else:
             self.params[key] = val
     
-    # NetAcquire directive parameters come surrounded with double quotes that 
-    # don't get shown by clients. It's helpful to remove them when escaping or 
-    # unescaping quoated parameters.
-    @classmethod
-    def strip_surrounding_quotes(cls, param):
-        """If either the first or last characters are double quotes, ditch 
-        'em.
-        
-        Returns a string with no starting or ending quotation marks.
-        """
-        param = str(param)
-        if param[0] == '"':
-            param = param[1:]
-        if param[-1] == '"':
-            param = param[:-1]
-        return param
-    
     # Escape a quoted parameter according to the NetAcquire protocol: 
     # doubling-up on the double quotes. `escape_param` also ensures that the 
     # escaped parameter is surrounded by double quotes.
@@ -81,7 +64,7 @@ class Directive(object):
         
         Returns a string with doubled-up quotation marks.
         """
-        return '"%s"' % cls.strip_surrounding_quotes(param).replace('"', '""')
+        return '"%s"' % param.replace('"', '""')
     
     @classmethod
     def unescape_param(cls, param):
@@ -89,7 +72,7 @@ class Directive(object):
         
         Returns a string with doubled-up quotation marks now singled-up.
         """
-        return cls.strip_surrounding_quotes(param).replace('""', '"')
+        return param[1:-1].replace('""', '"')
     
     # All incoming wiredata should be processed through `parse_multiple` before 
     # being consumed. One can never assume that only one directive lies in a 

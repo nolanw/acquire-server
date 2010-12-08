@@ -15,17 +15,21 @@ class TestDirectivesFromWiredata(unittest.TestCase):
         self.assertTrue(int(d[0]) == 4, d)
         self.assertTrue(len(d.params) == 1, d)
     
-    def test_single_quoted_parameter_directive(self):
+    def test_escape_single_quoted_parameter_directive(self):
         wiredata = (
             '"Can you do the ""Otter dance""?"',
             '"""Otter dance"", can you do it?"',
             '"He said ""I cannot do the ""Otter dance."""""',
         )
-        for wiredatum in wiredata:
+        expected = (
+            'Can you do the "Otter dance"?',
+            '"Otter dance", can you do it?',
+            'He said "I cannot do the "Otter dance.""',
+        )
+        for i, wiredatum in enumerate(wiredata):
             d = Directive('LM;%s;:' % wiredatum)
             self.assertTrue(d.code == 'LM', d)
-            self.assertTrue('Otter dance' in d[0], d)
-    
+            self.assertEqual(Directive.unescape_param(d[0]), expected[i])
     
     def test_multiple_directives(self):
         ds = Directive.parse_multiple('SS;3;:GM;"What is updog?";:'
