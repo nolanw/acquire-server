@@ -83,12 +83,12 @@ class NetAcquire(object):
     
     def lobby_chat_message(self, message):
         """A chat message destined for everyone in the lobby."""
-        cited = '%s: %s' % (message['player'], message['chat_message'])
+        cited = '%(player)s: %(chat_message)s' % message
         self.send_to_all_clients(Directive('LM', cited))
     
     def game_chat_message(self, message):
         """A chat message destined for players of a certain game."""
-        cited = '%s: %s' % (message['player'], message['chat_message'])
+        cited = '%(player)s: %(chat_message)s' % message
         self.send_to_clients_in_game(message['game'], Directive('GM', cited))
     
     
