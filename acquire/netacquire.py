@@ -44,8 +44,13 @@ class NetAcquire(object):
             self.names[fileno] = self.shaking_hands[fileno]
             del self.shaking_hands[fileno]
             if message['game']:
+                game = message['game']
                 self.set_client_state(client, 4)
-                self.update_game_views(message['game'])
+                if not game['started']:
+                    host = gametools.host(game)
+                    if host and host['name'] == self.name_of_client(client):
+                        self.set_client_state(client, 5)
+                self.update_game_views(game)
             else:
                 self.set_client_state(client, 3)
         announcement = '* %s has entered the lobby.' % message['player']
@@ -160,7 +165,10 @@ class NetAcquire(object):
         client = self.client_named(player)
         if client:
             self.set_client_state(client, 3)
-        client = self.client_named(gametools.host(game))
+        host = gametools.host(game)
+        if host:
+            host = host['name']
+        client = self.client_named(host)
         if client:
             self.set_client_state(client, 5)
         announcement = '* %s has left game %d.' % (player, game['number'])
