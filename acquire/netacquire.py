@@ -840,9 +840,11 @@ class NetAcquire(object):
         announcements = []
         for hotel_name in message['stock_market_shares']:
             tile = message['stock_market_shares'][hotel_name]
-            announcements.append('* Stock market has %d shares in %s (drew tile'
-                                 ' %s).' % (int(tile[:-1]), 
-                                            hotel_name.capitalize(), tile))
+            shares = int(tile[:-1])
+            plural = '' if shares != 2 else 's'
+            announcements.append('* Stock market has %d share%s in %s (drew '
+                                 'tile %s).' % (shares, plural, 
+                                                hotel_name.capitalize(), tile))
         return announcements
     
     def disconnected(self, client):
