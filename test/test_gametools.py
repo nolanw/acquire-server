@@ -616,6 +616,51 @@ class TestMerge(ThreePlayerGameTestCase):
         self.assertTrue('4I' not in self.game['lonely_tiles'])
     
 
+class TestTwoPlayerMerge(unittest.TestCase):
+    
+    def setUp(self):
+        self.game = gametools.new_game()
+        gametools.add_player_named(self.game, "testlady")
+        gametools.add_player_named(self.game, "testgirl")
+        gametools.start_game(self.game)
+        self.player, self.other_player = self.game['players']
+        self.player['rack'][0] = '1B'
+        blank_board(self.game)
+        self.game['tilebag'] = ['9F']
+        self.america = gametools.hotel_named(self.game, "america")
+        self.america['tiles'] = ['1A', '2A']
+        self.hydra = gametools.hotel_named(self.game, "hydra")
+        self.hydra['tiles'] = ['1C', '1D', '1E']
+    
+    def remember_cash(self):
+        self.cash_before = self.player['cash']
+    
+    def cash_change(self):
+        return self.player['cash'] - self.cash_before
+    
+    def merge_america_and_hydra(self):
+        gametools.play_tile(self.game, self.player, '1B')
+    
+    def test_stock_market_takes_majority(self):
+        self.player['shares']['america'] = 4
+        self.remember_cash()
+        self.merge_america_and_hydra()
+        self.assertEqual(self.cash_change(), 1500)
+    
+    def test_stock_market_shares_majority(self):
+        self.player['shares']['america'] = 9
+        self.remember_cash()
+        self.merge_america_and_hydra()
+        self.assertEqual(self.cash_change(), 2200)
+    
+    def test_stock_market_takes_minority(self):
+        self.other_player['shares']['america'] = 12
+        self.player['shares']['america'] = 5
+        self.remember_cash()
+        self.merge_america_and_hydra()
+        self.assertEqual(self.cash_change(), 0)
+    
+
 class TestUnplayableTileReplenishment(ThreePlayerGameTestCase):
     
     def test_discard_and_replenish_unplayable_rack_tiles(self):

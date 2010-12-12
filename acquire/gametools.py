@@ -2,7 +2,7 @@
 # passed around and serialized and such.)
 
 from collections import defaultdict
-from random import shuffle
+from random import choice, shuffle
 
 
 hotel_names = 'sackson zeta america fusion hydra quantum phoenix'.split()
@@ -331,6 +331,7 @@ def play_tile(game, player, tile):
     player['rack'].remove(tile)
     game['action_queue'].pop(0)
     
+    stock_market_shares = None
     if tile in tiles_that_create_hotels(game):
         append_action(game, 'create_hotel', player, creation_tile=tile)
     else:
@@ -341,7 +342,7 @@ def play_tile(game, player, tile):
                           tile=tile)
         elif survivors:
             survivor = hotel_named(game, survivors[0])
-            merge_hotels(game, player, tile, survivor)
+            stock_market_shares = merge_hotels(game, player, tile, survivor)
             if not game['action_queue']:
                 advance_turn(game, player)
         else:
@@ -355,6 +356,7 @@ def play_tile(game, player, tile):
             else:
                 game['lonely_tiles'].append(tile)
             advance_turn(game, player)
+    return stock_market_shares
 
 
 #### Creating hotels
@@ -401,16 +403,25 @@ def choose_survivor(game, player, survivor):
                                       (first_action['choices'],
                                        survivor['name']))
     game['action_queue'].pop(0)
-    merge_hotels(game, player, first_action['tile'], survivor)
+    return merge_hotels(game, player, first_action['tile'], survivor)
 
 def pay_merge_bonuses(game, hotels):
     """For each hotel in hotels, compute and pay out the majority and minority 
-    shareholder bonuses.
+    shareholder bonuses. If there are only two players, the stock market also 
+    partakes.
     """
     nearest_hundred_floor = lambda i: i - i % 100
+    two_players = len(game['players']) == 2
+    stock_market_tiles = {}
     for hotel in hotels:
         shares_held_by = lambda p: p['shares'][hotel['name']]
         shares_held = set(shares_held_by(p) for p in game['players'])
+        stock_market = None
+        if two_players and game['tilebag']:
+            random_tile = choice(game['tilebag'])
+            stock_market = int(random_tile[:-1])
+            shares_held.add(stock_market)
+            stock_market_tiles[hotel['name']] = random_tile
         most_held = max(shares_held)
         if len(shares_held) > 1:
             next_most_held = max(shares_held - set([most_held]))
@@ -418,9 +429,13 @@ def pay_merge_bonuses(game, hotels):
             next_most_held = None
         majority_holders = [p for p in game['players']
                                     if shares_held_by(p) == most_held]
+        if most_held == stock_market:
+            majority_holders.append({'cash': 0})
         minority_holders = [p for p in game['players'] 
                                     if next_most_held and 
                                        shares_held_by(p) == next_most_held]
+        if next_most_held and next_most_held == stock_market:
+            minority_holders.append({'cash': 0})
         majority_bonus = share_price(hotel) * 10
         minority_bonus = majority_bonus / 2
         if len(majority_holders) > 1:
@@ -437,6 +452,7 @@ def pay_merge_bonuses(game, hotels):
             p['cash'] += majority_bonus
         for p in minority_holders:
             p['cash'] += minority_bonus
+    return stock_market_tiles
 
 def merge_hotels(game, merging_player, tile, survivor):
     """Merge all hotels adjacent to the given tile into survivor, paying out 
@@ -445,7 +461,7 @@ def merge_hotels(game, merging_player, tile, survivor):
     """
     disappearing = [h for h in hotels_adjacent_to_tile(game, tile) 
                             if h != survivor]
-    pay_merge_bonuses(game, disappearing)
+    stock_market_tiles = pay_merge_bonuses(game, disappearing)
     disappearing.sort(key=lambda h: -len(h['tiles']))
     for hotel in disappearing:
         for player in player_order(game, merging_player):
@@ -459,6 +475,7 @@ def merge_hotels(game, merging_player, tile, survivor):
     }
     if not game['action_queue']:
         clean_up_merge(game)
+    return stock_market_tiles
 
 def disburse_shares(game, player, disbursement):
     """Disburse player's shares in the hotel requested earlier according to 

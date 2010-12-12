@@ -149,12 +149,14 @@ class Backend(object):
             return
         try:
             player = gametools.player_named(game, player_name)
-            gametools.play_tile(game, player, message['tile'])
+            stock_market_shares = gametools.play_tile(game, player, 
+                                                      message['tile'])
         except gametools.GamePlayNotAllowedError, e:
             self.send_error(player_name, 'Cannot play tile', e)
             return
         self.send_to_frontends('tile_played', game=game, tile=message['tile'], 
-                               player=player_name)
+                               player=player_name, 
+                               stock_market_shares=stock_market_shares)
     
     def create_hotel_message(self, message):
         """Someone created a new hotel."""
@@ -181,12 +183,14 @@ class Backend(object):
         try:
             player = gametools.player_named(game, player_name)
             survivor = gametools.hotel_named(game, message['hotel'])
-            gametools.choose_survivor(game, player, survivor)
+            stock_market_shares = gametools.choose_survivor(game, player, 
+                                                            survivor)
         except gametools.GamePlayNotAllowedError, e:
             self.send_error(player_name, 'Cannot choose survivor', e)
             return
         self.send_to_frontends('survivor_chosen', game=game, 
-                               survivor=survivor['name'], player=player_name)
+                               survivor=survivor['name'], player=player_name, 
+                               stock_market_shares=stock_market_shares)
     
     def disburse_shares_message(self, message):
         """Someone handled their shares in a disappearing hotel."""

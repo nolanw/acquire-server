@@ -231,6 +231,12 @@ class NetAcquire(object):
         announcement = '* %(player)s played tile %(tile)s.' % message
         game = message['game']
         self.send_to_clients_in_game(game, Directive('GM', announcement))
+        stock_market_shares = message.get('stock_market_shares', {})
+        for hotel_name in stock_market_shares:
+            tile = stock_market_shares[hotel_name]
+            announcement = '* Stock market has %d shares in %s (drew '
+                           'tile %s).' % (int(tile[:-1]), hotel_name, tile)
+            self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
     
     def create_hotel_action(self, game):
