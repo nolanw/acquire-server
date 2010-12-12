@@ -62,7 +62,11 @@ def remove_player_named(game, player_name):
 def host(game):
     """Returns the host player of the given game, or None if no players are in
     the given game."""
-    return game.get('players', [None])[0]
+    players = game.get('players', [None])
+    if players:
+        return players[0]
+    else:
+        return None
 
 def active_player(game):
     """Returns the player who must perform the next action."""
