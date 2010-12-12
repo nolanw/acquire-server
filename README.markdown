@@ -25,4 +25,4 @@ How to run
 See also
 --------
 
-Check the examples directory for how to set up the Mongrel2 handler to get acquire-server to talk over HTTP.
+Check the examples directory for how to set up the Mongrel2 handler to get acquire-server to talk over HTTP, and how to set up a configuration file for acquire-server and its frontends.
