@@ -569,7 +569,7 @@ def purchase(game, player, purchase_order, end_game=False):
     player['cash'] -= subtotal
     game['action_queue'].pop(0)
     if end_game and game_can_end(game):
-        game_over(game)
+        return game_over(game)
     else:
         advance_turn(game, player, can_purchase=False)
 
@@ -625,14 +625,16 @@ def game_over(game):
         raise GamePlayNotAllowedError('game is already over')
     if not game_can_end(game):
         raise GamePlayNotAllowedError('neither end-game condition met')
+    stock_market_shares = {}
     for hotel in hotels_on_board(game):
-        pay_merge_bonuses(game, [hotel])
+        stock_market_shares.update(pay_merge_bonuses(game, [hotel]))
         for player in game['players']:
             shares = player['shares']
             name = hotel['name']
             player['cash'] += share_price(hotel) * shares[name]
             shares[name] = 0
     game['ended'] = True
+    return stock_market_shares
 
 def winners(game):
     """Return the list of players who won this game."""

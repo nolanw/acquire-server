@@ -223,14 +223,16 @@ class Backend(object):
         order = message['order']
         try:
             player = gametools.player_named(game, player_name)
-            gametools.purchase(game, player, order, message['end_game'])
+            stock_market_shares = gametools.purchase(game, player, order, 
+                                                     message['end_game'])
         except gametools.GamePlayNotAllowedError, e:
             self.send_error(player_name, 'Cannot complete purchase', e)
             return
         self.send_to_frontends('purchased', game=game, order=order, 
                                player=player_name)
         if game['ended']:
-            self.send_to_frontends('game_over', game=game)
+            self.send_to_frontends('game_over', game=game, 
+                                   stock_market_shares=stock_market_shares)
     
     
     #### Helpers

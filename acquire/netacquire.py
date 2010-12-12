@@ -231,11 +231,7 @@ class NetAcquire(object):
         announcement = '* %(player)s played tile %(tile)s.' % message
         game = message['game']
         self.send_to_clients_in_game(game, Directive('GM', announcement))
-        stock_market_shares = message.get('stock_market_shares', {})
-        for hotel_name in stock_market_shares:
-            tile = stock_market_shares[hotel_name]
-            announcement = '* Stock market has %d shares in %s (drew '
-                           'tile %s).' % (int(tile[:-1]), hotel_name, tile)
+        for announcement in self.stock_market_shares_announcements(message):
             self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
     
@@ -290,6 +286,8 @@ class NetAcquire(object):
                         message['survivor'].capitalize())
         game = message['game']
         self.send_to_clients_in_game(game, Directive('GM', announcement))
+        for announcement in self.stock_market_shares_announcements(message):
+            self.send_to_clients_in_game(game, Directive('GM', announcement))
         self.update_game_views(game)
     
     def disburse_shares_action(self, game):
@@ -411,6 +409,9 @@ class NetAcquire(object):
             game_number = message['game_number']
         announcement = '* Game %d has ended.' % game_number
         self.send_to_all_clients(Directive('LM', announcement))
+        announcement = self.stock_market_shares_announcements(message)
+        self.send_to_clients_in_game(message.get('game', {'players': []}), 
+                                     Directive('GM', announcement))
         if 'game' in message:
             game = message['game']
             announcement = '***** '
@@ -828,6 +829,21 @@ class NetAcquire(object):
                 self.log.exception('action_queue handler bailed')
         else:
             self.log.debug('unimplemented action %s', first_action)
+    
+    def stock_market_shares_announcements(self, message):
+        """Returns a list of messages that can be sent to players in a 
+        two-player game to inform them of the stock market's stake in merging
+        hotels.
+        """
+        if not message.get('stock_market_shares'):
+            return []
+        announcements = []
+        for hotel_name in message['stock_market_shares']:
+            tile = message['stock_market_shares'][hotel_name]
+            announcements.append('* Stock market has %d shares in %s (drew tile'
+                                 ' %s).' % (int(tile[:-1]), 
+                                            hotel_name.capitalize(), tile))
+        return announcements
     
     def disconnected(self, client):
         """A client disconnected, so forget all about them."""
