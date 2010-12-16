@@ -444,8 +444,8 @@ class NetAcquire(object):
             for player in game['players']:
                 client = self.client_named(player['name'])
                 if client:
-                    self.set_client_state(client, 99)
                     self.update_scoreboard_view(client, game)
+                    self.set_client_state(client, 99)
     
     
     #### Log out
